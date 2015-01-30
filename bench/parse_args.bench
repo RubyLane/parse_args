@@ -1,0 +1,70 @@
+if {"bench" ni [info commands bench]} {
+	package require bench
+	namespace import bench::*
+}
+
+package require parse_args
+namespace path {
+	::parse_args
+}
+
+bench parse_args-1.1 {Parsing options} -batch 1000 -setup { #<<<
+	set args	{
+		-title	"Do the terms vintage and antique have the same meaning?"
+		-category {"Shop Owners" "Item Listing Information"}
+		-wiki {Most authorities consider the term ''''antique'''' to mean an age of at least '''100 years'''.  If an item is not definitively datable to 100 or more years in age, it should not be directly referred to as an antique.
+
+The term ''''vintage'''' is applicable to a wider variety of objects, including items that may or may not be antique. As a general rule, vintage should not be used in reference to an object less than '''20 years''' old, and the object should be somewhat representational and recognizable as belonging to the era in which it was made.}
+	}
+
+	proc native {t_a title c_a category w_a wiki {r_a rating} {rating 1.0}} {
+		list $title $category $wiki $rating
+	}
+
+	proc c_vars args {
+		parse_args $args {
+			-title		{-required}
+			-category	{-default {}}
+			-wiki		{-required}
+			-rating		{-default 1.0 -validate double}
+		}
+
+		list $title $category $wiki $rating
+	}
+
+	proc c_dict args {
+		parse_args $args {
+			-title		{-required}
+			-category	{-default {}}
+			-wiki		{-required}
+			-rating		{-default 1.0 -validate double}
+		} d
+
+		list [dict get $d title] [dict get $d category] [dict get $d wiki] [dict get $d rating]
+	}
+
+	proc c_dict_with args {
+		parse_args $args {
+			-title		{-required}
+			-category	{-default {}}
+			-wiki		{-required}
+			-rating		{-default 1.0 -validate double}
+		} d
+		dict with d {}
+
+		list $title $category $wiki $rating
+	}
+} -compare {
+	native      { native {*}$args }
+	c_vars      { c_vars {*}$args }
+	c_dict      { c_dict {*}$args }
+	c_dict_with { c_dict_with {*}$args }
+} -cleanup {
+	foreach p {c_vars c_dict c_dict_with} { rename $p {} }
+	unset -nocomplain args d title category wiki rating
+} -result {{Do the terms vintage and antique have the same meaning?} {"Shop Owners" "Item Listing Information"} {Most authorities consider the term ''''antique'''' to mean an age of at least '''100 years'''.  If an item is not definitively datable to 100 or more years in age, it should not be directly referred to as an antique.
+
+The term ''''vintage'''' is applicable to a wider variety of objects, including items that may or may not be antique. As a general rule, vintage should not be used in reference to an object less than '''20 years''' old, and the object should be somewhat representational and recognizable as belonging to the era in which it was made.} 1.0}
+#>>>
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

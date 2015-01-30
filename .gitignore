@@ -1,0 +1,7 @@
+*.swp
+*.o
+*.so
+pkgIndex.tcl
+Makefile
+core
+vgcore.*
