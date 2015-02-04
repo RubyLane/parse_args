@@ -76,6 +76,7 @@ proc _run_if_set script { #<<<
 #>>>
 proc _verify_res {variant retcodes expected match_mode got options} { #<<<
 	if {[dict get $options -code] ni $retcodes} {
+		#puts stderr [dict get $options -errorinfo]
 		bench::output error "Error: $got"
 		throw [list BENCH BAD_CODE $variant $retcodes [dict get $options -code]] \
 			"$variant: Expected codes [list $retcodes], got [dict get $options -code]"

@@ -20,7 +20,6 @@ Tcl_ObjType parse_spec_type = {
 struct interp_data {
 	Tcl_Obj*	true_obj;
 	Tcl_Obj*	false_obj;
-	Tcl_Obj*	empty_list;
 };
 
 struct parse_spec {
@@ -33,11 +32,12 @@ struct parse_spec {
 };
 
 struct option_info {
-	int		has_arg;
+	int		arg_count;
 	int		supplied;
 	int		is_args;	// args style processing - consume all remaining arguments
 	int		required;
-	Tcl_Obj*	name;
+	Tcl_Obj*	param;			// What this param is called in the spec
+	Tcl_Obj*	name;			// The name that will store this params value
 	Tcl_Obj*	default_val;	// NULL if no default
 	Tcl_Obj*	validator;
 };
@@ -45,6 +45,7 @@ struct option_info {
 static void free_option_info(struct option_info* option) //{{{
 {
 	if (option != NULL) {
+		UNREF(option->param);
 		UNREF(option->name);
 		UNREF(option->default_val);
 		UNREF(option->validator);
@@ -169,6 +170,7 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 		"-validate",
 		"-name",
 		"-boolean",
+		"-args",
 		(char*)NULL
 	};
 	enum {
@@ -176,7 +178,8 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 		SETTING_REQUIRED,
 		SETTING_VALIDATE,
 		SETTING_NAME,
-		SETTING_BOOLEAN
+		SETTING_BOOLEAN,
+		SETTING_ARGS
 	};
 
 	TEST_OK(Tcl_ListObjGetElements(interp, obj, &oc, &ov));
@@ -223,7 +226,8 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 			option = &spec->positional[p_i++];
 		}
 
-		option->has_arg = 1;
+		Tcl_IncrRefCount(option->param = name);
+		option->arg_count = 1;
 
 		TEST_OK_LABEL(err, retcode, Tcl_ListObjGetElements(interp, ov[i+1], &settingc, &settingv));
 		j = 0;
@@ -237,6 +241,7 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 				case SETTING_DEFAULT:
 				case SETTING_VALIDATE:
 				case SETTING_NAME:
+				case SETTING_ARGS:
 					if (j >= settingc)
 						THROW_ERROR_LABEL(err, retcode, Tcl_GetString(settingv[j-1]), " needs a value");
 					break;
@@ -256,7 +261,12 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 					Tcl_IncrRefCount(option->name = settingv[j++]);
 					break;
 				case SETTING_BOOLEAN:
-					option->has_arg = 0;
+					option->arg_count = 0;
+					break;
+				case SETTING_ARGS:
+					TEST_OK_LABEL(err, retcode, Tcl_GetIntFromObj(interp, settingv[j++], &option->arg_count));
+					if (option->arg_count < 0)
+						THROW_ERROR("-args cannot be negative");
 					break;
 				default:
 					THROW_ERROR_LABEL(err, retcode, "Invalid setting: ", Tcl_GetString(Tcl_NewIntObj(index)));
@@ -277,7 +287,7 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 		// Create special "args" behaviour for last positional param named "args"
 		// strcmp is safe because Tcl_GetString always gives us a properly
 		// \0 terminated string
-		if (strcmp("args", Tcl_GetString(last->name)) == 0) {
+		if (strcmp("args", Tcl_GetString(last->param)) == 0) {
 			last->is_args = 1;
 			if (last->default_val == NULL)
 				Tcl_IncrRefCount(last->default_val = Tcl_NewObj());
@@ -357,26 +367,41 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 				struct option_info*	option;
 				int	index;
 
+				// strcmp is safe because Tcl_GetString always returns properly
+				// \0 terminated strings
+				if (str_len == 2 && strcmp(str, "--") == 0) {
+					check_options = 0;
+					continue;
+				}
+
 				TEST_OK(Tcl_GetIndexFromObj(interp, av[i], spec->options, "option", TCL_EXACT, &index));
 				option = &spec->option[index];
 
 				option->supplied = 1;
-				//fprintf(stderr, "Option \"%s\" has_arg: %d\n",
-				//		Tcl_GetString(option->name), option->has_arg);
-				if (option->has_arg) {
-					if (i >= ac-1) {
-						// This option requires an arg and none remain
-						Tcl_WrongNumArgs(interp, 1, objv, Tcl_GetString(spec->usage_msg));
-						return TCL_ERROR;
-					}
+				//fprintf(stderr, "Option \"%s\" arg_count: %d\n",
+				//		Tcl_GetString(option->name), option->arg_count);
+				if (ac - i - 1 < option->arg_count) {
+					// This option requires an args and not enough remain
+					Tcl_WrongNumArgs(interp, 1, objv, Tcl_GetString(spec->usage_msg));
+					return TCL_ERROR;
+				}
 
-					// TODO: validate, etc
+				switch (option->arg_count) {
+					case 0:
+						OUTPUT(option->name, local->true_obj);
+						break;
 
-					OUTPUT(option->name, av[i+1]);
+					case 1:
+						// TODO: validate, etc
+						OUTPUT(option->name, av[++i]);
+						break;
 
-					i++;
-				} else {
-					OUTPUT(option->name, local->true_obj);
+					default:
+						// TODO: validate, etc
+						OUTPUT(option->name,
+								Tcl_NewListObj(option->arg_count, av+i+1));
+						i += option->arg_count;
+						break;
 				}
 
 				continue;
@@ -411,7 +436,7 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 
 		if (option->default_val != NULL) {
 			OUTPUT(option->name, option->default_val);
-		} else if (option->has_arg == 0) {
+		} else if (option->arg_count == 0) {
 			OUTPUT(option->name, local->false_obj);
 		} else {
 			if (option->required)
@@ -463,7 +488,6 @@ int Parse_args_Init(Tcl_Interp* interp) //{{{
 
 	Tcl_IncrRefCount(local->true_obj = Tcl_NewBooleanObj(1));
 	Tcl_IncrRefCount(local->false_obj = Tcl_NewBooleanObj(0));
-	Tcl_IncrRefCount(local->empty_list = Tcl_NewListObj(0, NULL));
 
 	Tcl_RegisterObjType(&parse_spec_type);
 

@@ -35,6 +35,69 @@ test parse_args-2.2 {basic option, vars mode} -body { #<<<
 	unset -nocomplain foo
 } -result bar
 #>>>
+test parse_args-3.2 {option escape} -body { #<<<
+	parse_args::parse_args {-foo bar -- -baz quux} {
+		-foo	{}
+		-bar	{}
+		-baz	{-default def}
+		a		{}
+		b		{}
+	}
+	list $foo [info exists bar] $baz $a $b
+} -cleanup {
+	unset -nocomplain foo bar baz a b
+} -result {bar 0 def -baz quux}
+#>>>
+test parse_args-10.1 {reject negative -args} -body { #<<<
+	parse_args::parse_args {-foo bar} {
+		-foo	{-args -1}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo
+} -returnCodes error -result {-args cannot be negative}
+#>>>
+test parse_args-10.2 {-args 0, supplied} -body { #<<<
+	parse_args::parse_args {-foo} {
+		-foo	{-args 0}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo
+} -result 1
+#>>>
+test parse_args-10.3 {-args 0, omitted} -body { #<<<
+	parse_args::parse_args {-bar ""} {
+		-foo	{-args 0}
+		-bar	{}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo bar
+} -result 0
+#>>>
+test parse_args-10.4 {-args 3, enough} -body { #<<<
+	parse_args::parse_args {-foo a "b c" d e f g h i j} {
+		-foo	{-args 3}
+		-bar	{}
+		p1		{}
+		p2		{}
+		args	{}
+	}
+	list $foo $p1 $p2 $args
+} -cleanup {
+	unset -nocomplain foo bar args
+} -result [list [list a "b c" d] e f {g h i j}]
+#>>>
+test parse_args-10.5 {-args 3, too few} -body { #<<<
+	parse_args::parse_args {-foo a "b c"} {
+		-foo	{-args 3}
+		-bar	{}
+	}
+} -cleanup {
+	unset -nocomplain foo bar
+} -returnCodes error -match glob -result *
+#>>>
 
 # cleanup
 ::tcltest::cleanupTests

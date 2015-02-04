@@ -17,6 +17,389 @@ bench parse_args-1.1 {Parsing options} -batch 1000 -setup { #<<<
 The term ''''vintage'''' is applicable to a wider variety of objects, including items that may or may not be antique. As a general rule, vintage should not be used in reference to an object less than '''20 years''' old, and the object should be somewhat representational and recognizable as belonging to the era in which it was made.}
 	}
 
+	proc parse_args_tcl_uncached {arglist spec {dictvar {}}} { #<<<
+		if {$dictvar ne ""} {
+			upvar 1 $dictvar d
+		}
+
+		set seen				{}
+		set positional_names	{}
+
+		set settings	[dict map {k v} $spec {
+			set s	{}
+			if {[string index $k 0] eq "-"} {
+				for {set j 0} {$j < [llength $v]} {incr j} {
+					switch -- [lindex $v $j] {
+						-default -
+						-validate -
+						-name -
+						-args {
+							if {$j >= [llength $v]-1} {
+								error "[lindex $v $j] requires an argument"
+							}
+							dict set s [string range [lindex $v $j] 1 end] [lindex $v [incr j]]
+						}
+
+						-boolean {
+							dict set s boolean 1
+						}
+						-required {
+							dict set s required 1
+						}
+						default {
+							error "Invalid arg spec option \"[lindex $v $j]\""
+						}
+					}
+				}
+				if {![dict exists $s boolean]} {
+					dict set s boolean 0
+				}
+				if {![dict exists $s required]} {
+					dict set s required 0
+				}
+				if {![dict exists $s name]} {
+					dict set s name [string range $k 1 end]
+				}
+			} else {
+				for {set j 0} {$j < [llength $v]} {incr j} {
+					switch -- [lindex $v $j] {
+						-default -
+						-validate -
+						-name -
+						-required {
+							dict set s required 1
+						}
+						default {
+							error "Invalid arg spec option \"[lindex $v $j]\""
+						}
+					}
+				}
+				if {![dict exists $s boolean]} {
+					dict set s boolean 0
+				}
+				if {![dict exists $s required]} {
+					dict set s required 0
+				}
+				if {![dict exists $s name]} {
+					dict set s name $k
+				}
+				lappend positional_names	$k
+			}
+			set s
+		}]
+
+		set p_i			0
+
+		set check_options	1
+		for {set i 0} {$i < [llength $arglist]} {incr i} {
+			set arg	[lindex $arglist $i]
+			if {$check_options} {
+				if {$arg eq "--"} {
+					set check_options	0
+					continue
+				}
+				if {[string index $arglist 0] eq "-"} {
+					if {![dict exists $spec $arg]} {
+						error "Invalid option: \"$arg\""
+					}
+					set s	[dict get $settings $arg]
+
+					if {[dict get $s boolean] && [dict exists $s args] && [dict get $s args] != 0} {
+						error "-boolean options cannot have -args greater than 0"
+					}
+					if {[dict get $s boolean]} {
+						set v	1
+					} else {
+						if {![dict exists $s args]} {
+							dict set s args 1
+						}
+						if {[llength $arglist] - $i - 1 < [dict get $s args]} {
+							error "option $arg requires [dict get $s args], but [expr {[llength $argslist] - $i - 1}] remain"
+						}
+						switch -- [dict get $s args] {
+							0 {set v 1}
+							1 {set v [lindex $arglist [incr i]]}
+							default {
+								set v [lrange $arglist $i+1 [expr {
+									$i + [dict get $s args] - 1
+								}]
+								incr i [dict get $s args]
+							}
+						}
+					}
+
+					# TODO: validate
+
+					dict set d [dict get $s name] $v
+
+					dict set seen $arg 1
+
+					continue
+				} else {
+					set check_options	0
+				}
+			}
+
+			if {$p_i >= [llength $positional_names]} {
+				error "Too many arguments for positional params: [join $positional_names {, }]"
+			}
+
+			set pname	[lindex $positional_names $p_i]
+			set s	[dict get $settings $pname]
+
+			if {$p_i == [llength $positional_names]-1 && $pname eq "args"} {
+				dict set d [dict get $s name] [lrange $arglist $i+1 end]
+				set i	[expr {[llength $arglist] - 1}]
+			} else {
+				# TODO: validate
+				dict set d [dict get $s name] $arg
+			}
+			incr p_i
+		}
+
+		# Check -required and set -default for options that weren't specified
+		dict for {k v} $spec {
+			if {[string index $k 0] ne "-"} continue
+			if {[dict exists $seen $k]} continue
+			if {[dict get $settings $k default]} {
+				dict set d [dict get $settings $k name] [dict get $settings $k default]
+			} elseif {[dict get $settings $k required]} {
+				error "option \"$k\" is required"
+			}
+		}
+
+		# Set default values for positional params that need them
+		foreach pname [lrange $positional_names $p_i end] {
+			set s	[dict get $settings $pname]
+			if {[dict exists $s default]} {
+				dict set d [dict get $s name] [dict get $s default]
+			} else {
+				error "argument $pname is required"
+			}
+		}
+
+		if {$dictvar eq ""} {
+			dict for {k v} $d {
+				uplevel 1 [list set $k $v]
+			}
+		}
+	}
+
+	#>>>
+	proc get_parsed_spec spec { #<<<
+		global __spec_cache
+		if {![info exists __spec_cache] || ![dict exists $__spec_cache $spec]} {
+			set positional_names	{}
+			set settings	[dict map {k v} $spec {
+				set s	{}
+				if {[string index $k 0] eq "-"} {
+					for {set j 0} {$j < [llength $v]} {incr j} {
+						switch -- [lindex $v $j] {
+							-default -
+							-validate -
+							-name -
+							-args {
+								if {$j >= [llength $v]-1} {
+									error "[lindex $v $j] requires an argument"
+								}
+								dict set s [string range [lindex $v $j] 1 end] [lindex $v [incr j]]
+							}
+
+							-boolean {
+								dict set s boolean 1
+							}
+							-required {
+								dict set s required 1
+							}
+							default {
+								error "Invalid arg spec option \"[lindex $v $j]\""
+							}
+						}
+					}
+					if {![dict exists $s boolean]} {
+						dict set s boolean 0
+					}
+					if {![dict exists $s required]} {
+						dict set s required 0
+					}
+					if {![dict exists $s name]} {
+						dict set s name [string range $k 1 end]
+					}
+				} else {
+					for {set j 0} {$j < [llength $v]} {incr j} {
+						switch -- [lindex $v $j] {
+							-default -
+							-validate -
+							-name -
+							-required {
+								dict set s required 1
+							}
+							default {
+								error "Invalid arg spec option \"[lindex $v $j]\""
+							}
+						}
+					}
+					if {![dict exists $s boolean]} {
+						dict set s boolean 0
+					}
+					if {![dict exists $s required]} {
+						dict set s required 0
+					}
+					if {![dict exists $s name]} {
+						dict set s name $k
+					}
+					lappend positional_names	$k
+				}
+				set s
+			}]
+			dict set __spec_cache $spec [list $settings $positional_names]
+		}
+		dict get $__spec_cache $spec
+	}
+
+	#>>>
+	proc parse_args_tcl {arglist spec {dictvar {}}} { #<<<
+		if {$dictvar ne ""} {
+			upvar 1 $dictvar d
+		}
+
+		set seen				{}
+
+		lassign [get_parsed_spec $spec] settings positional_names
+
+		set p_i			0
+
+		set check_options	1
+		for {set i 0} {$i < [llength $arglist]} {incr i} {
+			set arg	[lindex $arglist $i]
+			if {$check_options} {
+				if {$arg eq "--"} {
+					set check_options	0
+					continue
+				}
+				if {[string index $arglist 0] eq "-"} {
+					if {![dict exists $spec $arg]} {
+						error "Invalid option: \"$arg\""
+					}
+					set s	[dict get $settings $arg]
+
+					if {[dict get $s boolean] && [dict exists $s args] && [dict get $s args] != 0} {
+						error "-boolean options cannot have -args greater than 0"
+					}
+					if {[dict get $s boolean]} {
+						set v	1
+					} else {
+						if {![dict exists $s args]} {
+							dict set s args 1
+						}
+						if {[llength $arglist] - $i - 1 < [dict get $s args]} {
+							error "option $arg requires [dict get $s args], but [expr {[llength $argslist] - $i - 1}] remain"
+						}
+						switch -- [dict get $s args] {
+							0 {set v 1}
+							1 {set v [lindex $arglist [incr i]]}
+							default {
+								set v [lrange $arglist $i+1 [expr {
+									$i + [dict get $s args] - 1
+								}]
+								incr i [dict get $s args]
+							}
+						}
+					}
+
+					# TODO: validate
+
+					dict set d [dict get $s name] $v
+
+					dict set seen $arg 1
+
+					continue
+				} else {
+					set check_options	0
+				}
+			}
+
+			if {$p_i >= [llength $positional_names]} {
+				error "Too many arguments for positional params: [join $positional_names {, }]"
+			}
+
+			set pname	[lindex $positional_names $p_i]
+			set s	[dict get $settings $pname]
+
+			if {$p_i == [llength $positional_names]-1 && $pname eq "args"} {
+				dict set d [dict get $s name] [lrange $arglist $i+1 end]
+				set i	[expr {[llength $arglist] - 1}]
+			} else {
+				# TODO: validate
+				dict set d [dict get $s name] $arg
+			}
+			incr p_i
+		}
+
+		# Check -required and set -default for options that weren't specified
+		dict for {k v} $spec {
+			if {[string index $k 0] ne "-"} continue
+			if {[dict exists $seen $k]} continue
+			if {[dict get $settings $k default]} {
+				dict set d [dict get $settings $k name] [dict get $settings $k default]
+			} elseif {[dict get $settings $k required]} {
+				error "option \"$k\" is required"
+			}
+		}
+
+		# Set default values for positional params that need them
+		foreach pname [lrange $positional_names $p_i end] {
+			set s	[dict get $settings $pname]
+			if {[dict exists $s default]} {
+				dict set d [dict get $s name] [dict get $s default]
+			} else {
+				error "argument $pname is required"
+			}
+		}
+
+		if {$dictvar eq ""} {
+			dict for {k v} $d {
+				uplevel 1 [list set $k $v]
+			}
+		}
+	}
+
+	#>>>
+
+	proc tcl_vars args {
+		parse_args_tcl $args {
+			-title		{-required}
+			-category	{-default {}}
+			-wiki		{-required}
+			-rating		{-default 1.0 -validate double}
+		}
+
+		list $title $category $wiki $rating
+	}
+
+	proc tcl_dict args {
+		parse_args_tcl $args {
+			-title		{-required}
+			-category	{-default {}}
+			-wiki		{-required}
+			-rating		{-default 1.0 -validate double}
+		} d
+
+		list [dict get $d title] [dict get $d category] [dict get $d wiki] [dict get $d rating]
+	}
+
+	proc tcl_dict_with args {
+		parse_args_tcl $args {
+			-title		{-required}
+			-category	{-default {}}
+			-wiki		{-required}
+			-rating		{-default 1.0 -validate double}
+		} d
+		dict with d {}
+
+		list $title $category $wiki $rating
+	}
+
 	proc native {t_a title c_a category w_a wiki {r_a rating} {rating 1.0}} {
 		list $title $category $wiki $rating
 	}
@@ -55,13 +438,16 @@ The term ''''vintage'''' is applicable to a wider variety of objects, including 
 		list $title $category $wiki $rating
 	}
 } -compare {
-	native      { native {*}$args }
-	c_vars      { c_vars {*}$args }
-	c_dict      { c_dict {*}$args }
-	c_dict_with { c_dict_with {*}$args }
+	tcl_vars        { tcl_vars {*}$args }
+	tcl_dict        { tcl_dict {*}$args }
+	tcl_dict_with   { tcl_dict_with {*}$args }
+	native          { native {*}$args }
+	c_vars          { c_vars {*}$args }
+	c_dict          { c_dict {*}$args }
+	c_dict_with     { c_dict_with {*}$args }
 } -cleanup {
-	foreach p {c_vars c_dict c_dict_with} { rename $p {} }
-	unset -nocomplain args d title category wiki rating
+	foreach p {parse_args_tcl_uncached get_parsed_spec tcl_vars tcl_dict tcl_dict_with native c_vars c_dict c_dict_with} { rename $p {} }
+	unset -nocomplain args d title category wiki rating __spec_cache
 } -result {{Do the terms vintage and antique have the same meaning?} {"Shop Owners" "Item Listing Information"} {Most authorities consider the term ''''antique'''' to mean an age of at least '''100 years'''.  If an item is not definitively datable to 100 or more years in age, it should not be directly referred to as an antique.
 
 The term ''''vintage'''' is applicable to a wider variety of objects, including items that may or may not be antique. As a general rule, vintage should not be used in reference to an object less than '''20 years''' old, and the object should be somewhat representational and recognizable as belonging to the era in which it was made.} 1.0}
