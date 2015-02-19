@@ -336,8 +336,10 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 	Tcl_Obj*	res = NULL;
 	const int	dictmode = objc >= 4;
 
-	if (objc < 3 || objc > 4)
+	if (objc < 3 || objc > 4) {
 		Tcl_WrongNumArgs(interp, 1, objv, "args args_spec ?dict?");
+		return TCL_ERROR;
+	}
 
 	TEST_OK(Tcl_ListObjGetElements(interp, objv[1], &ac, &av));
 	//fprintf(stderr, "Getting parse_spec from (%s)\n", Tcl_GetString(objv[2]));
@@ -445,7 +447,7 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 	}
 
 	// Set default values for positional params that need them
-	for (; positional_arg < spec->positional_arg_count; i++) {
+	for (; positional_arg < spec->positional_arg_count; positional_arg++) {
 		struct option_info* option = &spec->positional[positional_arg];
 
 		if (option->default_val != NULL) {

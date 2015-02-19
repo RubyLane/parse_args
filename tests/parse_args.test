@@ -48,6 +48,18 @@ test parse_args-3.2 {option escape} -body { #<<<
 	unset -nocomplain foo bar baz a b
 } -result {bar 0 def -baz quux}
 #>>>
+test parse_args-3.3 {default positional arg} -body { #<<<
+	parse_args::parse_args {a b} {
+		-foo	{}
+		first	{}
+		second	{-default default_second}
+		third	{-default default_third}
+	}
+	list $first $second $third
+} -cleanup {
+	unset -nocomplain foo first second third
+} -result {a b default_third}
+#>>>
 test parse_args-10.1 {reject negative -args} -body { #<<<
 	parse_args::parse_args {-foo bar} {
 		-foo	{-args -1}
@@ -97,6 +109,10 @@ test parse_args-10.5 {-args 3, too few} -body { #<<<
 } -cleanup {
 	unset -nocomplain foo bar
 } -returnCodes error -match glob -result *
+#>>>
+test parse_args-20.1 {no args} -body { #<<<
+	parse_args::parse_args
+} -returnCodes error -result {wrong # args: should be "parse_args::parse_args args args_spec ?dict?"}
 #>>>
 
 # cleanup
