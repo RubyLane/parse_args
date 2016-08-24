@@ -88,6 +88,7 @@ struct option_info {
 	Tcl_Obj*	default_val;	// NULL if no default
 	Tcl_Obj*	validator;
 	Tcl_Obj*	enum_choices;	// NULL if not an enum, also stores multi_choices for a multi
+	Tcl_Obj*	comment;		// NULL if no comment
 };
 
 static void free_option_info(struct option_info* option) //{{{
@@ -98,6 +99,7 @@ static void free_option_info(struct option_info* option) //{{{
 		UNREF(option->default_val);
 		UNREF(option->validator);
 		UNREF(option->enum_choices);
+		UNREF(option->comment);
 	}
 }
 
@@ -215,6 +217,7 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 		"-boolean",
 		"-args",
 		"-enum",
+		"-#",
 		(char*)NULL
 	};
 	enum {
@@ -224,7 +227,8 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 		SETTING_NAME,
 		SETTING_BOOLEAN,
 		SETTING_ARGS,
-		SETTING_ENUM
+		SETTING_ENUM,
+		SETTING_COMMENT
 	};
 
 	TEST_OK(Tcl_ListObjGetElements(interp, obj, &oc, &ov));
@@ -293,6 +297,7 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 				case SETTING_NAME:
 				case SETTING_ARGS:
 				case SETTING_ENUM:
+				case SETTING_COMMENT:
 					if (j >= settingc)
 						THROW_ERROR_LABEL(err, retcode, Tcl_GetString(settingv[j-1]), " needs a value");
 					break;
@@ -347,6 +352,9 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 
 						Tcl_IncrRefCount(option->enum_choices = shared_enum_choices);
 					}
+					break;
+				case SETTING_COMMENT:
+					Tcl_IncrRefCount(option->comment = settingv[j++]);
 					break;
 				default:
 					THROW_ERROR_LABEL(err, retcode, "Invalid setting: ", Tcl_GetString(Tcl_NewIntObj(index)));

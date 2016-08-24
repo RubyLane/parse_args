@@ -110,6 +110,15 @@ test parse_args-10.5 {-args 3, too few} -body { #<<<
 	unset -nocomplain foo bar
 } -returnCodes error -match glob -result *
 #>>>
+test parse_args-11.1 {invalid setting} -body { #<<<
+	parse_args::parse_args {} {
+		-foo	{-foo 3}
+		-bar	{}
+	}
+} -cleanup {
+	unset -nocomplain foo bar
+} -returnCodes error -result {bad setting "-foo": must be -default, -required, -validate, -name, -boolean, -args, -enum, or -#}
+#>>>
 test parse_args-20.1 {no args} -body { #<<<
 	parse_args::parse_args
 } -returnCodes error -result {wrong # args: should be "parse_args::parse_args args args_spec ?dict?"}

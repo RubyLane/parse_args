@@ -1,0 +1,39 @@
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import ::tcltest::*
+}
+
+try {
+	package require parse_args
+} on error {errmsg options} {
+	puts stderr "Error loading parse_args:\n$options"
+	return
+}
+
+# Options
+test comment-1.1 {basic usage} -body { #<<<
+	parse_args::parse_args {-state disabled} {
+		-state	{-enum {normal disabled readonly} -# {This is a comment}}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result disabled
+#>>>
+
+# Positional params
+test comment-2.1 {basic usage} -body { #<<<
+	parse_args::parse_args disabled {
+		state	{-enum {normal disabled readonly} -# {This is a comment}}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result disabled
+#>>>
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
