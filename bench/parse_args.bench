@@ -371,7 +371,7 @@ The term ''''vintage'''' is applicable to a wider variety of objects, including 
 			-title		{-required}
 			-category	{-default {}}
 			-wiki		{-required}
-			-rating		{-default 1.0 -validate double}
+			-rating		{-default 1.0 -validate {string is double -strict}}
 		}
 
 		list $title $category $wiki $rating
@@ -382,7 +382,7 @@ The term ''''vintage'''' is applicable to a wider variety of objects, including 
 			-title		{-required}
 			-category	{-default {}}
 			-wiki		{-required}
-			-rating		{-default 1.0 -validate double}
+			-rating		{-default 1.0 -validate {string is double -strict}}
 		} d
 
 		list [dict get $d title] [dict get $d category] [dict get $d wiki] [dict get $d rating]
@@ -393,7 +393,7 @@ The term ''''vintage'''' is applicable to a wider variety of objects, including 
 			-title		{-required}
 			-category	{-default {}}
 			-wiki		{-required}
-			-rating		{-default 1.0 -validate double}
+			-rating		{-default 1.0 -validate {string is double -strict}}
 		} d
 		dict with d {}
 
@@ -409,7 +409,7 @@ The term ''''vintage'''' is applicable to a wider variety of objects, including 
 			-title		{-required}
 			-category	{-default {}}
 			-wiki		{-required}
-			-rating		{-default 1.0 -validate double}
+			-rating		{-default 1.0 -validate {string is double -strict}}
 		}
 
 		list $title $category $wiki $rating
@@ -420,7 +420,7 @@ The term ''''vintage'''' is applicable to a wider variety of objects, including 
 			-title		{-required}
 			-category	{-default {}}
 			-wiki		{-required}
-			-rating		{-default 1.0 -validate double}
+			-rating		{-default 1.0 -validate {string is double -strict}}
 		} d
 
 		list [dict get $d title] [dict get $d category] [dict get $d wiki] [dict get $d rating]
@@ -431,7 +431,7 @@ The term ''''vintage'''' is applicable to a wider variety of objects, including 
 			-title		{-required}
 			-category	{-default {}}
 			-wiki		{-required}
-			-rating		{-default 1.0 -validate double}
+			-rating		{-default 1.0 -validate {string is double -strict}}
 		} d
 		dict with d {}
 
@@ -500,6 +500,61 @@ bench overhead-1.1 {nop overhead} -batch 1000 -setup { #<<<
 	foreach p {tcl p} {rename $p {}}
 	unset -nocomplain p
 } -result {}
+
+#>>>
+
+bench validate-1.1 {validation, succeeds} -batch 1000 -setup { #<<<
+	proc tcl rating {
+		list [catch {
+			if {![string is double -strict $rating]} {
+				error "Validation failed for \"rating\": 0"
+			}
+			set rating
+		} r o] $r
+	}
+
+	proc p args {
+		list [catch {
+			parse_args $args {
+				rating	{-validate {string is double -strict}}
+			}
+			set rating
+		} r o] $r
+	}
+} -compare {
+	tcl			{ tcl 1.2 }
+	parse_args	{ p 1.2 }
+} -cleanup {
+	foreach p {tcl p} {rename $p {}}
+	unset -nocomplain p
+} -result [list 0 1.2]
+
+#>>>
+bench validate-1.2 {validation, fails} -batch 1000 -setup { #<<<
+	proc tcl rating {
+		list [catch {
+			if {![string is double -strict $rating]} {
+				error "Validation failed for \"rating\": 0"
+			}
+			set rating
+		} r o] $r
+	}
+
+	proc p args {
+		list [catch {
+			parse_args $args {
+				rating	{-validate {string is double -strict}}
+			}
+			set rating
+		} r o] $r
+	}
+} -compare {
+	tcl			{ tcl x1.2 }
+	parse_args	{ p x1.2 }
+} -cleanup {
+	foreach p {tcl p} {rename $p {}}
+	unset -nocomplain p
+} -result [list 1 "Validation failed for \"rating\": 0"]
 
 #>>>
 

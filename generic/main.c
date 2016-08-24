@@ -86,7 +86,7 @@ struct option_info {
 	Tcl_Obj*	param;			// What this param is called in the spec
 	Tcl_Obj*	name;			// The name that will store this params value
 	Tcl_Obj*	default_val;	// NULL if no default
-	Tcl_Obj*	validator;
+	Tcl_Obj*	validator;		// NULL if no validator
 	Tcl_Obj*	enum_choices;	// NULL if not an enum, also stores multi_choices for a multi
 	Tcl_Obj*	comment;		// NULL if no comment
 };
@@ -311,7 +311,15 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 					option->required = 1;
 					break;
 				case SETTING_VALIDATE:
-					Tcl_IncrRefCount(option->validator = settingv[j++]);
+					{
+						Tcl_Obj*	validatorobj = settingv[j++];
+						Tcl_Obj**	ov;
+						int			oc;
+
+						TEST_OK(Tcl_ListObjGetElements(interp, validatorobj, &oc, &ov));
+						if (oc > 0)
+							Tcl_IncrRefCount(option->validator = validatorobj);
+					}
 					break;
 				case SETTING_NAME:
 					Tcl_IncrRefCount(option->name = settingv[j++]);
@@ -415,6 +423,71 @@ static int GetParseSpecFromObj(Tcl_Interp* interp, Tcl_Obj* spec, struct parse_s
 
 //}}}
 
+static int validate(Tcl_Interp* interp, struct option_info* option, Tcl_Obj* val) //{{{
+{
+	Tcl_Obj*	verdict = NULL;
+
+	if (option->enum_choices != NULL) {
+		int		dummy;
+		char**	enum_table;
+
+		TEST_OK(GetEnumChoicesFromObj(interp, option->enum_choices, &enum_table));
+		TEST_OK(Tcl_GetIndexFromObj(interp, val, enum_table, Tcl_GetString(option->param), TCL_EXACT, &dummy));
+	}
+
+	if (option->validator != NULL) {
+		int			res, passed;
+		Tcl_Obj**	ov;
+		int			oc;
+
+		TEST_OK(Tcl_ListObjGetElements(interp, option->validator, &oc, &ov));
+		{
+			Tcl_Obj*	cmd[oc+1];
+			int			i;
+
+			for (i=0; i<oc; i++) Tcl_IncrRefCount(cmd[i] = ov[i]);
+			Tcl_IncrRefCount(cmd[oc] = val);
+			res = Tcl_EvalObjv(interp, oc+1, cmd, 0);
+			Tcl_IncrRefCount(verdict = Tcl_GetObjResult(interp));
+			for (i=0; i<oc+1; i++) Tcl_DecrRefCount(cmd[i]);
+		}
+
+		if (res == TCL_OK) {
+			Tcl_ResetResult(interp);
+			if (Tcl_GetCharLength(verdict) == 0) {
+				// Accept a blank string as a pass 
+				passed = 1;
+			} else {
+				if (Tcl_GetBooleanFromObj(interp, verdict, &passed) != TCL_OK) {
+					Tcl_ResetResult(interp);
+					passed = 0;
+				}
+			}
+		} else {
+			passed = 0;
+			Tcl_ResetResult(interp);
+		}
+
+		if (passed) {
+			res = TCL_OK;
+		} else {
+			Tcl_SetObjResult(interp,
+				Tcl_ObjPrintf("Validation failed for \"%s\": %s",
+						Tcl_GetString(option->param),
+						Tcl_GetString(verdict) ));
+			Tcl_SetErrorCode(interp, "PARSE_ARGS", "VALIDATION", Tcl_GetString(option->param), NULL);
+			res = TCL_ERROR;
+		}
+
+		Tcl_DecrRefCount(verdict); verdict = NULL;
+
+		return res;
+	}
+
+	return TCL_OK;
+}
+
+//}}}
 static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *const objv[]) //{{{
 {
 	struct interp_data*	local = (struct interp_data*)cdata;
@@ -422,6 +495,7 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 	int			ac, i, check_options=1, positional_arg=0;
 	struct parse_spec*	spec = NULL;
 	Tcl_Obj*	res = NULL;
+	Tcl_Obj*	val = NULL;
 	const int	dictmode = objc >= 4;
 
 	if (objc < 3 || objc > 4) {
@@ -441,9 +515,14 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 
 #define OUTPUT(name, val) \
 	if (dictmode) { \
-		TEST_OK(Tcl_DictObjPut(interp, res, name, val)); \
+		TEST_OK(Tcl_DictObjPut(interp, res, (name), (val))); \
 	} else { \
-		if (Tcl_ObjSetVar2(interp, name, NULL, val, TCL_LEAVE_ERR_MSG) == NULL) return TCL_ERROR; \
+		if (Tcl_ObjSetVar2(interp, (name), NULL, (val), TCL_LEAVE_ERR_MSG) == NULL) return TCL_ERROR; \
+	}
+
+#define VALIDATE(option, val) \
+	if ((option)->validator != NULL || (option)->enum_choices != NULL) { \
+		TEST_OK(validate(interp, (option), (val))); \
 	}
 
 	for (i=0; i<ac; i++) {
@@ -482,14 +561,15 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 						break;
 
 					case 1:
-						// TODO: validate, etc
-						OUTPUT(option->name, av[++i]);
+						val = av[++i];
+						VALIDATE(option, val);
+						OUTPUT(option->name, val);
 						break;
 
 					default:
-						// TODO: validate, etc
-						OUTPUT(option->name,
-								Tcl_NewListObj(option->arg_count, av+i+1));
+						val = Tcl_NewListObj(option->arg_count, av+i+1);
+						VALIDATE(option, val);
+						OUTPUT(option->name, val);
 						i += option->arg_count;
 						break;
 				}
@@ -507,11 +587,12 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 		}
 
 		if (spec->positional[positional_arg].is_args) {
-			OUTPUT(spec->positional[positional_arg].name,
-					Tcl_NewListObj(ac-i, av+i));
+			val = Tcl_NewListObj(ac-i, av+i);
+			VALIDATE(&spec->positional[positional_arg], val);
+			OUTPUT(spec->positional[positional_arg].name, val);
 			i = ac;
 		} else {
-			// TODO: validate
+			VALIDATE(&spec->positional[positional_arg], av[i]);
 			OUTPUT(spec->positional[positional_arg].name, av[i]);
 		}
 

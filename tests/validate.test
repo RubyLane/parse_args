@@ -1,0 +1,151 @@
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import ::tcltest::*
+}
+
+try {
+	package require parse_args
+} on error {errmsg options} {
+	puts stderr "Error loading parse_args:\n$options"
+	return
+}
+
+# Options
+test validate-1.1 {basic usage, valid} -body { #<<<
+	parse_args::parse_args {-rating 1.2} {
+		-rating	{-validate {string is double -strict}}
+	}
+	set rating
+} -cleanup {
+	unset -nocomplain rating
+} -result 1.2
+#>>>
+test validate-1.2 {basic usage, invalid} -body { #<<<
+	list [catch {
+		parse_args::parse_args {-rating x1.2} {
+			-rating	{-validate {string is double -strict}}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o
+} -result {1 {Validation failed for "-rating": 0} {PARSE_ARGS VALIDATION -rating}}
+#>>>
+test validate-1.3 {basic usage, blank} -body { #<<<
+	list [catch {
+		parse_args::parse_args {-rating ""} {
+			-rating	{-validate {string is double -strict}}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o
+} -result {1 {Validation failed for "-rating": 0} {PARSE_ARGS VALIDATION -rating}}
+#>>>
+test validate-1.4 {basic usage, missing} -body { #<<<
+	parse_args::parse_args {} {
+		-rating	{-validate {string is double -strict}}
+	}
+	info exists rating
+} -cleanup {
+	unset -nocomplain rating
+} -result 0
+#>>>
+test validate-2.1 {validator throws error} -body { #<<<
+	parse_args::parse_args {-rating 0} {
+		-rating	{-validate {tcl::mathop::+ 1}}
+	}
+	set rating
+} -cleanup {
+	unset -nocomplain rating
+} -result 0
+#>>>
+test validate-2.2 {validator throws error} -body { #<<<
+	list [catch {
+		parse_args::parse_args {-rating ""} {
+			-rating	{-validate {tcl::mathop::+ 1}}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o
+} -result {1 {Validation failed for "-rating": can't use empty string as operand of "+"} {PARSE_ARGS VALIDATION -rating}}
+#>>>
+test validate-3.1 {validator with apply, throws error} -body { #<<<
+	list [catch {
+		parse_args::parse_args {-rating ""} {
+			-rating	{-validate {apply {
+				val {
+					if {[string length $val] < 3} {
+						error "Must be at least 3 characters long"
+					}
+					return 1
+				}
+			} }}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o
+} -result {1 {Validation failed for "-rating": Must be at least 3 characters long} {PARSE_ARGS VALIDATION -rating}}
+#>>>
+test validate-3.2 {validator with apply, returns blank} -body { #<<<
+	parse_args::parse_args {-rating foo} {
+		-rating	{-validate {apply {
+			val {
+				if {[string length $val] < 3} {
+					error "Must be at least 3 characters long"
+				}
+				return ""
+			}
+		} }}
+	}
+	set rating
+} -cleanup {
+	unset -nocomplain rating
+} -result foo
+#>>>
+test validate-3.3 {validator with apply, throws error} -body { #<<<
+	list [catch {
+		parse_args::parse_args {-rating ""} {
+			-rating	{-validate {apply {
+				val {
+					if {[string length $val] < 3} {
+						return "Must be at least 3 characters long"
+					}
+				}
+			} }}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o
+} -result {1 {Validation failed for "-rating": Must be at least 3 characters long} {PARSE_ARGS VALIDATION -rating}}
+#>>>
+test validate-3.4 {blank validator} -body { #<<<
+	parse_args::parse_args {-rating foo} {
+		-rating	{-validate {}}
+	}
+	set rating
+} -cleanup {
+	unset -nocomplain rating
+} -result foo
+#>>>
+test validate-3.5 {local vars} -body { #<<<
+	set ref	foo
+	parse_args::parse_args {-rating foo} {
+		-rating	{-validate {apply {
+			val {
+				upvar 1 ref ref
+				expr {$val eq $ref}
+			}
+		}}}
+	}
+	set rating
+} -cleanup {
+	unset -nocomplain rating
+} -result foo
+#>>>
+
+# Positional params
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
