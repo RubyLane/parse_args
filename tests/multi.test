@@ -1,0 +1,229 @@
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import ::tcltest::*
+}
+
+try {
+	package require parse_args
+} on error {errmsg options} {
+	puts stderr "Error loading parse_args:\n$options"
+	return
+}
+
+test multi-1.1 {basic usage} -body { #<<<
+	parse_args::parse_args {-dictionary} {
+		-ascii		{-multi -name compare_as}
+		-dictionary	{-multi -name compare_as}
+		-integer	{-multi -name compare_as}
+	}
+	set compare_as
+} -cleanup {
+	unset -nocomplain compare_as
+} -result dictionary
+#>>>
+test multi-1.2 {no value, default on first} -body { #<<<
+	parse_args::parse_args {} {
+		-ascii		{-multi -name compare_as -default foo}
+		-dictionary	{-multi -name compare_as}
+		-integer	{-multi -name compare_as}
+	}
+	set compare_as
+} -cleanup {
+	unset -nocomplain compare_as
+} -result foo
+#>>>
+test multi-1.3 {no value, default on second} -body { #<<<
+	parse_args::parse_args {} {
+		-ascii		{-multi -name compare_as}
+		-dictionary	{-multi -name compare_as -default foo}
+		-integer	{-multi -name compare_as}
+	}
+	set compare_as
+} -cleanup {
+	unset -nocomplain compare_as
+} -result foo
+#>>>
+test multi-1.4 {no value, no default} -body { #<<<
+	parse_args::parse_args {} {
+		-ascii		{-multi -name compare_as}
+		-dictionary	{-multi -name compare_as}
+		-integer	{-multi -name compare_as}
+	}
+	info exists compare_as
+} -cleanup {
+	unset -nocomplain compare_as
+} -result 0
+#>>>
+test multi-1.5 {no value, required on first} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {} {
+			-ascii		{-multi -name compare_as -required}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {one of -ascii -dictionary -integer are required} {PARSE_ARGS REQUIRED_ONE_OF {-ascii -dictionary -integer}}}
+#>>>
+test multi-1.6 {no value, required on last} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {} {
+			-ascii		{-multi -name compare_as}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as -required}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {one of -ascii -dictionary -integer are required} {PARSE_ARGS REQUIRED_ONE_OF {-ascii -dictionary -integer}}}
+#>>>
+test multi-1.7 {supplied value, default on first} -body { #<<<
+	parse_args::parse_args {-dictionary} {
+		-ascii		{-multi -name compare_as -default foo}
+		-dictionary	{-multi -name compare_as}
+		-integer	{-multi -name compare_as}
+	}
+	set compare_as
+} -cleanup {
+	unset -nocomplain compare_as
+} -result dictionary
+#>>>
+test multi-2.1 {throw error for -multi and -enum} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {} {
+			-ascii		{-multi -name compare_as -enum {foo bar}}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as -required}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {Cannot use -multi and -enum together} NONE}
+#>>>
+test multi-2.2 {throw error for -multi and -boolean} -constraints knownBug -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {} {
+			-ascii		{-multi -name compare_as -boolean}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {Cannot use -multi and -boolean together} NONE}
+#>>>
+test multi-2.3 {throw error for -multi and -args} -constraints knownBug -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {} {
+			-ascii		{-multi -name compare_as -args 2}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {Cannot use -multi and -args together} NONE}
+#>>>
+test multi-3.1 {two -multis, both default} -body { #<<<
+	parse_args::parse_args {} {
+		-ascii		{-multi -name compare_as -default ascii}
+		-dictionary	{-multi -name compare_as}
+		-integer	{-multi -name compare_as}
+		-increasing	{-multi -name order}
+		-decreasing	{-multi -name order -default increasing}
+	}
+	list $compare_as $order
+} -cleanup {
+	unset -nocomplain compare_as order
+} -result {ascii increasing}
+#>>>
+test multi-3.2 {two -multis, first set, second default} -body { #<<<
+	parse_args::parse_args {-dictionary} {
+		-ascii		{-multi -name compare_as -default ascii}
+		-dictionary	{-multi -name compare_as}
+		-integer	{-multi -name compare_as}
+		-increasing	{-multi -name order}
+		-decreasing	{-multi -name order -default increasing}
+	}
+	list $compare_as $order
+} -cleanup {
+	unset -nocomplain compare_as order
+} -result {dictionary increasing}
+#>>>
+test multi-3.3 {two -multis, first default, second set} -body { #<<<
+	parse_args::parse_args {-decreasing} {
+		-ascii		{-multi -name compare_as -default ascii}
+		-dictionary	{-multi -name compare_as}
+		-integer	{-multi -name compare_as}
+		-increasing	{-multi -name order}
+		-decreasing	{-multi -name order -default increasing}
+	}
+	list $compare_as $order
+} -cleanup {
+	unset -nocomplain compare_as order
+} -result {ascii decreasing}
+#>>>
+test multi-4.1 {two -multis, both required, neither set} -body { #<<<
+	list [catch {
+		parse_args::parse_args {} {
+			-ascii		{-multi -name compare_as -required}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as}
+			-increasing	{-multi -name order -required}
+			-decreasing	{-multi -name order}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o compare_as order
+} -result [list 1 "one of -ascii -dictionary -integer are required" {PARSE_ARGS REQUIRED_ONE_OF {-ascii -dictionary -integer}}]
+#>>>
+test multi-4.2 {two -multis, first set, second missing} -body { #<<<
+	list [catch {
+		parse_args::parse_args {-dictionary} {
+			-ascii		{-multi -name compare_as -required}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as}
+			-increasing	{-multi -name order -required}
+			-decreasing	{-multi -name order}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o compare_as order
+} -result [list 1 "one of -increasing -decreasing are required" {PARSE_ARGS REQUIRED_ONE_OF {-increasing -decreasing}}]
+#>>>
+test multi-4.3 {two -multis, first missing, second set} -body { #<<<
+	list [catch {
+		parse_args::parse_args {-decreasing} {
+			-ascii		{-multi -name compare_as -required}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as}
+			-increasing	{-multi -name order -required}
+			-decreasing	{-multi -name order}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o compare_as order
+} -result [list 1 "one of -ascii -dictionary -integer are required" {PARSE_ARGS REQUIRED_ONE_OF {-ascii -dictionary -integer}}]
+#>>>
+test multi-5.1 {throw error for -multi on positional param} -body { #<<<
+	list [catch {
+		parse_args::parse_args {} {
+			foo		{-multi -name compare_as}
+		}
+	} r o] $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain r o compare_as order
+} -result [list 1 {Cannot use -multi on positional argument "foo"} NONE]
+#>>>
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

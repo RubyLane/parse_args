@@ -558,4 +558,77 @@ bench validate-1.2 {validation, fails} -batch 1000 -setup { #<<<
 
 #>>>
 
+bench multi-1.1 {multi} -batch 1000 -setup { #<<<
+	proc tcl args {
+		foreach arg $args {
+			switch -- $arg {
+				-ascii -
+				-dictionary -
+				-integer -
+				-real {
+					set compare_as	[string range $arg 1 end]
+				}
+			}
+		}
+		if {![info exists compare_as]} {
+			set compare_as	ascii
+		}
+		set compare_as
+	}
+
+	proc p args {
+		parse_args $args {
+			-ascii		{-multi -name compare_as -default ascii}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as}
+			-real		{-multi -name compare_as}
+		}
+		set compare_as
+	}
+} -compare {
+	tcl			{tcl -dictionary}
+	parse_args	{p -dictionary}
+} -cleanup {
+	foreach p {tcl p} {rename $p {}}
+	unset -nocomplain p
+} -result dictionary
+
+#>>>
+bench multi-1.2 {multi, default} -batch 1000 -setup { #<<<
+	proc tcl args {
+		foreach arg $args {
+			switch -- $arg {
+				-ascii -
+				-dictionary -
+				-integer -
+				-real {
+					set compare_as	[string range $arg 1 end]
+				}
+			}
+		}
+		if {![info exists compare_as]} {
+			set compare_as	ascii
+		}
+		set compare_as
+	}
+
+	proc p args {
+		parse_args $args {
+			-ascii		{-multi -name compare_as -default ascii}
+			-dictionary	{-multi -name compare_as}
+			-integer	{-multi -name compare_as}
+			-real		{-multi -name compare_as}
+		}
+		set compare_as
+	}
+} -compare {
+	tcl			tcl
+	parse_args	p
+} -cleanup {
+	foreach p {tcl p} {rename $p {}}
+	unset -nocomplain p
+} -result ascii
+
+#>>>
+
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

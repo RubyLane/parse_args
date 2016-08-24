@@ -117,7 +117,7 @@ test parse_args-11.1 {invalid setting} -body { #<<<
 	}
 } -cleanup {
 	unset -nocomplain foo bar
-} -returnCodes error -result {bad setting "-foo": must be -default, -required, -validate, -name, -boolean, -args, -enum, or -#}
+} -returnCodes error -result {bad setting "-foo": must be -default, -required, -validate, -name, -boolean, -args, -enum, -#, or -multi}
 #>>>
 test parse_args-20.1 {no args} -body { #<<<
 	parse_args::parse_args
