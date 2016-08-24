@@ -1,0 +1,228 @@
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import ::tcltest::*
+}
+
+try {
+	package require parse_args
+} on error {errmsg options} {
+	puts stderr "Error loading parse_args:\n$options"
+	return
+}
+
+# Options
+test enum-1.1 {basic usage} -body { #<<<
+	parse_args::parse_args {-state disabled} {
+		-state	{-enum {normal disabled readonly}}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result disabled
+#>>>
+test enum-2.1 {invalid value} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {-state new} {
+			-state	{-enum {normal disabled readonly}}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {bad -state "new": must be normal, disabled, or readonly} {TCL LOOKUP INDEX -state new}}
+#>>>
+test enum-3.1 {valid value, with default} -body { #<<<
+	parse_args::parse_args {-state disabled} {
+		-state	{-enum {normal disabled readonly} -default normal}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result disabled
+#>>>
+test enum-3.2 {no value, with default} -body { #<<<
+	parse_args::parse_args {} {
+		-state	{-enum {normal disabled readonly} -default normal}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result normal
+#>>>
+test enum-3.3 {no value, with invalid default} -body { #<<<
+	parse_args::parse_args {} {
+		-state	{-enum {normal disabled readonly} -default new}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result new
+#>>>
+test enum-4.3 {no value, required, with default} -body { #<<<
+	parse_args::parse_args {} {
+		-state	{-enum {normal disabled readonly} -default normal -required}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result normal
+#>>>
+test enum-4.4 {no value, required, no default} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {} {
+			-state	{-enum {normal disabled readonly} -required}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain state
+} -result {1 {option -state is required} {PARSE_ARGS REQUIRED -state}}
+#>>>
+test enum-5.1 {specified twice, both valid} -body { #<<<
+	parse_args::parse_args {-state disabled -state readonly} {
+		-state	{-enum {normal disabled readonly}}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result readonly
+#>>>
+test enum-5.2 {specified twice, first invalid} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {-state new -state readonly} {
+			-state	{-enum {normal disabled readonly}}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {bad -state "new": must be normal, disabled, or readonly} {TCL LOOKUP INDEX -state new}}
+#>>>
+test enum-5.3 {specified twice, second invalid} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {-state readonly -state new} {
+			-state	{-enum {normal disabled readonly}}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {bad -state "new": must be normal, disabled, or readonly} {TCL LOOKUP INDEX -state new}}
+#>>>
+test enum-6.1 {two enums} -body { #<<<
+	parse_args::parse_args {-state disabled -validate focusout} {
+		-state		{-enum {normal disabled readonly}}
+		-validate	{-enum {none focus focusin focusout key all}}
+	}
+	list $state $validate
+} -cleanup {
+	unset -nocomplain state validate
+} -result {disabled focusout}
+#>>>
+test enum-6.2 {prefix values} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {-state d} {
+			-state	{-enum {normal disabled readonly}}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {bad -state "d": must be normal, disabled, or readonly} {TCL LOOKUP INDEX -state d}}
+#>>>
+
+# Positional params
+test enum-11.1 {basic usage} -body { #<<<
+	parse_args::parse_args disabled {
+		state	{-enum {normal disabled readonly}}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result disabled
+#>>>
+test enum-12.1 {invalid value} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args new {
+			state	{-enum {normal disabled readonly}}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {bad state "new": must be normal, disabled, or readonly} {TCL LOOKUP INDEX state new}}
+#>>>
+test enum-13.1 {valid value, with default} -body { #<<<
+	parse_args::parse_args disabled {
+		state	{-enum {normal disabled readonly} -default normal}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result disabled
+#>>>
+test enum-13.2 {no value, with default} -body { #<<<
+	parse_args::parse_args {} {
+		state	{-enum {normal disabled readonly} -default normal}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result normal
+#>>>
+test enum-13.3 {no value, with invalid default} -body { #<<<
+	parse_args::parse_args {} {
+		state	{-enum {normal disabled readonly} -default new}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result new
+#>>>
+test enum-14.3 {no value, required, with default} -body { #<<<
+	parse_args::parse_args {} {
+		state	{-enum {normal disabled readonly} -default normal -required}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result normal
+#>>>
+test enum-14.4 {no value, required, no default} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args {} {
+			state	{-enum {normal disabled readonly} -required}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain state
+} -result {1 {argument state is required} {PARSE_ARGS REQUIRED state}}
+#>>>
+test enum-16.1 {two enums} -body { #<<<
+	parse_args::parse_args {disabled focusout} {
+		state		{-enum {normal disabled readonly}}
+		validate	{-enum {none focus focusin focusout key all}}
+	}
+	list $state $validate
+} -cleanup {
+	unset -nocomplain state validate
+} -result {disabled focusout}
+#>>>
+test enum-16.2 {prefix values} -body { #<<<
+	set code	[catch {
+		parse_args::parse_args d {
+			state	{-enum {normal disabled readonly}}
+		}
+	} r o]
+	list $code $r [dict get $o -errorcode]
+} -cleanup {
+	unset -nocomplain code state r o
+} -result {1 {bad state "d": must be normal, disabled, or readonly} {TCL LOOKUP INDEX state d}}
+#>>>
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

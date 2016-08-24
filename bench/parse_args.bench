@@ -453,4 +453,54 @@ The term ''''vintage'''' is applicable to a wider variety of objects, including 
 The term ''''vintage'''' is applicable to a wider variety of objects, including items that may or may not be antique. As a general rule, vintage should not be used in reference to an object less than '''20 years''' old, and the object should be somewhat representational and recognizable as belonging to the era in which it was made.} 1.0}
 #>>>
 
+bench enum-1.1 {enum validate} -batch 1000 -setup { #<<<
+	proc tcl {state validate} {
+		if {$state ni {normal disabled readonly}} {
+			throw [list TCL LOOKUP INDEX state $state] "bad state \"$state\": must be normal, disabled, or readonly"
+		}
+		if {$validate ni {none focus focusin focusout key all}} {
+			throw [list TCL LOOKUP INDEX validate $validate] "bad validate \"$validate\": must be none, focus, focusin, focusout, key, or all"
+		}
+		list $state $validate
+	}
+
+	proc p args {
+		parse_args $args {
+			state		{-enum {normal disabled readonly}}
+			validate	{-enum {none focus focusin focusout key all}}
+		}
+		list $state $validate
+	}
+	set state		readonly
+	set validate	focusout
+} -compare {
+	tcl			{ tcl $state $validate}
+	parse_args	{ p $state $validate }
+} -cleanup {
+	foreach p {tcl p} {rename $p {}}
+	unset -nocomplain p state validate
+} -result {readonly focusout}
+
+#>>>
+
+bench overhead-1.1 {nop overhead} -batch 1000 -setup { #<<<
+	proc tcl args {
+		set args	;# Prevent Tcl from optimizing out the call entirely
+	}
+
+	proc p args {
+		parse_args $args {
+		}
+		set args
+	}
+} -compare {
+	tcl			tcl
+	parse_args	p
+} -cleanup {
+	foreach p {tcl p} {rename $p {}}
+	unset -nocomplain p
+} -result {}
+
+#>>>
+
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
