@@ -374,12 +374,17 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 						Tcl_Obj*	shared_enum_choices = NULL;
 						int			size;
 
+						if (enums == NULL) {
+							retcode = TCL_ERROR;
+							goto err;
+						}
+
 						TEST_OK_LABEL(err, retcode, Tcl_DictObjGet(interp, enums, enum_choices, &shared_enum_choices));
 
 						if (shared_enum_choices == NULL) {
 							if (Tcl_IsShared(enums)) {
 								enums = Tcl_ObjSetVar2(interp, varname, NULL, Tcl_DuplicateObj(enums), TCL_LEAVE_ERR_MSG);
-								if (enums = NULL) {
+								if (enums == NULL) {
 									retcode = TCL_ERROR;
 									goto err;
 								}
