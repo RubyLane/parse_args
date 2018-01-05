@@ -1,0 +1,272 @@
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import ::tcltest::*
+}
+
+try {
+	package require parse_args
+} on error {errmsg options} {
+	puts stderr "Error loading parse_args:\n$options"
+	return
+}
+
+# Options
+test alias-1.1 {alias scalar, option, exists} -setup { #<<<
+	set target alias-1.1-testval
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			-aliased	{-alias -required}
+		}
+
+		set existed	[info exists aliased]
+		set was	$aliased
+		append aliased -updated
+		list $existed $was
+	}} -aliased target] $target
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-1.1-testval alias-1.1-testval-updated}
+#>>>
+test alias-1.2 {alias scalar, option, doesn't exist} -setup { #<<<
+	unset -nocomplain target
+} -body {
+	list [info exists target] {*}[apply {args {
+		parse_args::parse_args $args {
+			-aliased	{-alias -required}
+		}
+
+		list [info exists aliased] [set aliased alias-1.2-testval]
+	}} -aliased target] $target
+} -cleanup {
+	unset -nocomplain target
+} -result {0 0 alias-1.2-testval alias-1.2-testval}
+#>>>
+test alias-2.1 {alias array, option, exists} -setup { #<<<
+	array set target {foo alias-2.1-testval}
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			-aliased	{-alias -required}
+		}
+
+		set existed	[info exists aliased(foo)]
+		set was	$aliased(foo)
+		append aliased(foo) -updated
+		list $existed $was
+	}} -aliased target] $target(foo)
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-2.1-testval alias-2.1-testval-updated}
+#>>>
+test alias-2.2 {alias array, option, doesn't exist} -setup { #<<<
+	unset -nocomplain target
+} -body {
+	list [info exists target] {*}[apply {args {
+		parse_args::parse_args $args {
+			-aliased	{-alias -required}
+		}
+
+		list [info exists aliased] [set aliased(foo) alias-2.2-testval]
+	}} -aliased target] $target(foo)
+} -cleanup {
+	unset -nocomplain target
+} -result {0 0 alias-2.2-testval alias-2.2-testval}
+#>>>
+test alias-3.1 {alias array element, option, exists} -setup { #<<<
+	array set target {foo alias-3.1-testval}
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			-aliased	{-alias -required}
+		}
+
+		set existed	[info exists aliased]
+		set was	$aliased
+		append aliased -updated
+		list $existed $was
+	}} -aliased target(foo)] $target(foo)
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-3.1-testval alias-3.1-testval-updated}
+#>>>
+test alias-3.2 {alias array element, option, doesn't exist} -setup { #<<<
+	unset -nocomplain target
+} -body {
+	list [info exists target(foo)] {*}[apply {args {
+		parse_args::parse_args $args {
+			-aliased	{-alias -required}
+		}
+
+		list [info exists aliased] [set aliased alias-3.2-testval]
+	}} -aliased target(foo)] $target(foo)
+} -cleanup {
+	unset -nocomplain target
+} -result {0 0 alias-3.2-testval alias-3.2-testval}
+#>>>
+test alias-4.1 {default handling, option, supplied, exists} -setup { #<<<
+	set target	alias-4.1-testval
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			-aliased	{-alias -default alias-4.1-default}
+		}
+
+		set was	$aliased
+		append aliased -updated
+		list [info exists aliased] $was
+	}} -aliased target] $target
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-4.1-testval alias-4.1-testval-updated}
+#>>>
+test alias-4.2 {default handling, option, not supplied, exists} -setup { #<<<
+	set target	alias-4.2-testval
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			-aliased	{-alias -default alias-4.2-default}
+		}
+
+		set was	$aliased
+		append aliased -updated
+		list [info exists aliased] $was
+	}}] $target
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-4.2-default alias-4.2-testval}
+#>>>
+
+# Positional params
+test alias-11.1 {alias scalar, positional, exists} -setup { #<<<
+	set target alias-11.1-testval
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			aliased	{-alias -required}
+		}
+
+		set existed	[info exists aliased]
+		set was	$aliased
+		append aliased -updated
+		list $existed $was
+	}} target] $target
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-11.1-testval alias-11.1-testval-updated}
+#>>>
+test alias-11.2 {alias scalar, positional, doesn't exist} -setup { #<<<
+	unset -nocomplain target
+} -body {
+	list [info exists target] {*}[apply {args {
+		parse_args::parse_args $args {
+			aliased	{-alias -required}
+		}
+
+		list [info exists aliased] [set aliased alias-11.2-testval]
+	}} target] $target
+} -cleanup {
+	unset -nocomplain target
+} -result {0 0 alias-11.2-testval alias-11.2-testval}
+#>>>
+test alias-12.1 {alias array, positional, exists} -setup { #<<<
+	array set target {foo alias-12.1-testval}
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			aliased	{-alias -required}
+		}
+
+		set existed [info exists aliased(foo)]
+		set was	$aliased(foo)
+		append aliased(foo) -updated
+		list $existed $was
+	}} target] $target(foo)
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-12.1-testval alias-12.1-testval-updated}
+#>>>
+test alias-12.2 {alias array, positional, doesn't exist} -setup { #<<<
+	unset -nocomplain target
+} -body {
+	list [info exists target] {*}[apply {args {
+		parse_args::parse_args $args {
+			aliased	{-alias -required}
+		}
+
+		list [info exists aliased] [set aliased(foo) alias-12.2-testval]
+	}} target] $target(foo)
+} -cleanup {
+	unset -nocomplain target
+} -result {0 0 alias-12.2-testval alias-12.2-testval}
+#>>>
+test alias-13.1 {alias array element, positional, exists} -setup { #<<<
+	array set target {foo alias-13.1-testval}
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			aliased	{-alias -required}
+		}
+
+		set existed [info exists aliased]
+		set was	$aliased
+		append aliased -updated
+		list $existed $was
+	}} target(foo)] $target(foo)
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-13.1-testval alias-13.1-testval-updated}
+#>>>
+test alias-13.2 {alias array element, positional, doesn't exist} -setup { #<<<
+	unset -nocomplain target
+} -body {
+	list [info exists target(foo)] {*}[apply {args {
+		parse_args::parse_args $args {
+			aliased	{-alias -required}
+		}
+
+		list [info exists aliased] [set aliased alias-13.2-testval]
+	}} target(foo)] $target(foo)
+} -cleanup {
+	unset -nocomplain target
+} -result {0 0 alias-13.2-testval alias-13.2-testval}
+#>>>
+test alias-14.1 {default handling, positional, supplied, exists} -setup { #<<<
+	set target	alias-14.1-testval
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			aliased	{-alias -default alias-14.1-default}
+		}
+
+		set was	$aliased
+		append aliased -updated
+		list [info exists aliased] $was
+	}} target] $target
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-14.1-testval alias-14.1-testval-updated}
+#>>>
+test alias-14.2 {default handling, option, not supplied, exists} -setup { #<<<
+	set target	alias-14.2-testval
+} -body {
+	list {*}[apply {args {
+		parse_args::parse_args $args {
+			aliased	{-alias -default alias-14.2-default}
+		}
+
+		set was	$aliased
+		append aliased -updated
+		list [info exists aliased] $was
+	}}] $target
+} -cleanup {
+	unset -nocomplain target
+} -result {1 alias-14.2-default alias-14.2-testval}
+#>>>
+
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

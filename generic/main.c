@@ -92,6 +92,7 @@ struct option_info {
 	Tcl_Obj*	validator;		// NULL if no validator
 	Tcl_Obj*	enum_choices;	// NULL if not an enum, also stores multi_choices for a multi
 	Tcl_Obj*	comment;		// NULL if no comment
+	int			alias;			// boolean
 };
 
 static void free_option_info(struct option_info* option) //{{{
@@ -239,6 +240,7 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 		"-enum",
 		"-#",
 		"-multi",
+		"-alias",
 		(char*)NULL
 	};
 	enum {
@@ -250,7 +252,8 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 		SETTING_ARGS,
 		SETTING_ENUM,
 		SETTING_COMMENT,
-		SETTING_MULTI
+		SETTING_MULTI,
+		SETTING_ALIAS
 	};
 	Tcl_Obj*	mc_idx      = Tcl_NewStringObj("idx", -1);
 	Tcl_Obj*	mc_required = Tcl_NewStringObj("required", -1);
@@ -415,6 +418,9 @@ static int set_from_any(Tcl_Interp* interp, Tcl_Obj* obj) //{{{
 						THROW_ERROR_LABEL(err, retcode, "Cannot use -multi on positional argument \"", Tcl_GetString(option->param), "\"");
 
 					option->arg_count = -1;
+					break;
+				case SETTING_ALIAS:
+					option->alias = 1;
 					break;
 				default:
 					THROW_ERROR_LABEL(err, retcode, "Invalid setting: ", Tcl_GetString(Tcl_NewIntObj(index)));
@@ -697,7 +703,7 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 				//fprintf(stderr, "Option \"%s\" arg_count: %d\n",
 				//		Tcl_GetString(option->name), option->arg_count);
 				if (option->arg_count > 0 && ac - i - 1 < option->arg_count) {
-					// This option requires an args and not enough remain
+					// This option requires args and not enough remain
 					Tcl_WrongNumArgs(interp, 1, objv, Tcl_GetString(spec->usage_msg));
 					return TCL_ERROR;
 				}
@@ -714,7 +720,16 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 					case 1:
 						val = av[++i];
 						VALIDATE(option, val);
-						OUTPUT(option->name, val);
+						if (option->alias == 0) {
+							OUTPUT(option->name, val);
+						} else {
+							if (dictmode) {
+								// TODO: fetch the value from the variable called option->name in the parent callframe
+								THROW_ERROR("-alias is not yet supported in dictionary mode");
+							} else {
+								TEST_OK(Tcl_UpVar(interp, "1", Tcl_GetString(val), Tcl_GetString(option->name), 0));
+							}
+						}
 						break;
 
 					default:
@@ -744,7 +759,16 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 			i = ac;
 		} else {
 			VALIDATE(&spec->positional[positional_arg], av[i]);
-			OUTPUT(spec->positional[positional_arg].name, av[i]);
+			if (spec->positional[positional_arg].alias == 0) {
+				OUTPUT(spec->positional[positional_arg].name, av[i]);
+			} else {
+				if (dictmode) {
+					// TODO: fetch the value from the variable called option->name in the parent callframe
+					THROW_ERROR("-alias is not yet supported in dictionary mode");
+				} else {
+					TEST_OK(Tcl_UpVar(interp, "1", Tcl_GetString(av[i]), Tcl_GetString(spec->positional[positional_arg].name), 0));
+				}
+			}
 		}
 
 		positional_arg++;
