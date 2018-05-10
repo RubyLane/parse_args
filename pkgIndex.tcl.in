@@ -1,4 +1,9 @@
 #
 # Tcl package index file
 #
-package ifneeded @PACKAGE_NAME@ @PACKAGE_VERSION@ [list load [file join $dir @PKG_LIB_FILE@] @PACKAGE_NAME@]
+# The line is split across two lines not just for readability but also
+# because a bug in the nmakehlp program used by Windows nmake build system
+# causes incorrect substitution when doing multiple replaces of a single
+# pattern on one line.
+package ifneeded @PACKAGE_NAME@ @PACKAGE_VERSION@ \
+    [list load [file join $dir @PKG_LIB_FILE@] @PACKAGE_NAME@]

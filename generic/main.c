@@ -590,7 +590,18 @@ static int validate(Tcl_Interp* interp, struct option_info* option, Tcl_Obj* val
 
 		TEST_OK(Tcl_ListObjGetElements(interp, option->validator, &oc, &ov));
 		{
+#ifdef _MSC_VER
+			/* 
+			* VC++ does not support C99 varsize arrays. 
+			* Use _malloca to allocate stack space 
+			* (recommended over _alloca) instead. Note this will
+			* die on stack overflow just like varsize arrays.
+			* Also note the corresponding _freea to free memory.
+                        */
+			Tcl_Obj** cmd = _malloca((oc+1)*sizeof(*cmd));
+#else
 			Tcl_Obj*	cmd[oc+1];
+#endif
 			int			i;
 
 			for (i=0; i<oc; i++) Tcl_IncrRefCount(cmd[i] = ov[i]);
@@ -598,6 +609,9 @@ static int validate(Tcl_Interp* interp, struct option_info* option, Tcl_Obj* val
 			res = Tcl_EvalObjv(interp, oc+1, cmd, 0);
 			Tcl_IncrRefCount(verdict = Tcl_GetObjResult(interp));
 			for (i=0; i<oc+1; i++) Tcl_DecrRefCount(cmd[i]);
+#ifdef _MSC_VER
+			_freea(cmd);
+#endif
 		}
 
 		if (res == TCL_OK) {
@@ -836,6 +850,9 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 
 //}}}
 
+#ifdef WIN32
+extern DLLEXPORT
+#endif
 int Parse_args_Init(Tcl_Interp* interp) //{{{
 {
 	struct interp_data*	local;
