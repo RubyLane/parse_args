@@ -1,0 +1,52 @@
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import ::tcltest::*
+}
+
+try {
+	package require parse_args
+} on error {errmsg options} {
+	puts stderr "Error loading parse_args:\n$options"
+	return
+}
+
+test safeinterp-1.1 {Loading into safe interp} -setup { #<<<
+	set slave	[interp create -safe]
+} -body {
+	$slave invokehidden load {} parse_args
+	$slave eval {
+		parse_args::parse_args {-test foo-1.1} {
+			-test	{-required}
+		}
+		set test
+	}
+} -cleanup {
+	if {[info exists slave]} {
+		interp delete $slave
+		unset slave
+	}
+} -result foo-1.1
+#>>>
+test safeinterp-1.2 {Loading into safe interp using package require} -setup { #<<<
+	set slave	[safe::interpCreate]
+} -body {
+	$slave eval {
+		package require parse_args
+		parse_args::parse_args {-test foo-1.2} {
+			-test	{-required}
+		}
+		set test
+	}
+} -cleanup {
+	if {[info exists slave]} {
+		safe::interpDelete $slave
+		unset slave
+	}
+} -result foo-1.2
+#>>>
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

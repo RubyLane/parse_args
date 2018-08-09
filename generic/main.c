@@ -886,5 +886,12 @@ int Parse_args_Init(Tcl_Interp* interp) //{{{
 }
 
 //}}}
+int Parse_args_SafeInit(Tcl_Interp* interp) //{{{
+{
+	// No unsafe features
+	return Parse_args_Init(interp);
+}
+
+//}}}
 
 // vim: foldmethod=marker foldmarker={{{,}}} ts=4 shiftwidth=4
