@@ -123,6 +123,16 @@ test parse_args-20.1 {no args} -body { #<<<
 	parse_args::parse_args
 } -returnCodes error -result {wrong # args: should be "parse_args::parse_args args args_spec ?dict?"}
 #>>>
+test parse_args-30.1 {Doesn't generate string rep} -body { # Known to fail currently - it's an still open problem to find a way to avoid this <<<
+	set i	[expr {2-1}]
+	parse_args::parse_args [list $i] {
+		foo {}
+	}
+	tcl::unsupported::representation $i
+} -cleanup {
+	unset -nocomplain i foo
+} -match glob -result {value is a int * no string representation}
+#>>>
 
 # cleanup
 ::tcltest::cleanupTests

@@ -1,6 +1,5 @@
 /* TODO:
  *  - Better error messages
- *  - Implement validators
  */
 
 #include "main.h"
