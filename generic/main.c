@@ -855,6 +855,7 @@ extern DLLEXPORT
 int Parse_args_Init(Tcl_Interp* interp) //{{{
 {
 	struct interp_data*	local;
+	Tcl_Namespace*		ns = NULL;
 
 	if (Tcl_InitStubs(interp, "8.5", 0) == NULL)
 		return TCL_ERROR;
@@ -874,6 +875,10 @@ int Parse_args_Init(Tcl_Interp* interp) //{{{
 
 	Tcl_RegisterObjType(&enum_choices_type);
 	Tcl_RegisterObjType(&parse_spec_type);
+
+	ns = Tcl_CreateNamespace(interp, "::parse_args", NULL, NULL);
+	if (Tcl_Export(interp, ns, "*", 0) != TCL_OK)
+		return TCL_ERROR;
 
 	Tcl_CreateObjCommand(interp, "::parse_args::parse_args", parse_args,
 				(ClientData *)local, NULL);
