@@ -4,7 +4,7 @@ dnl	generate the file "configure", which is run during Tcl installation
 dnl	to configure the system for the local environment.
 
 #-----------------------------------------------------------------------
-# Sample configure.in for Tcl Extensions.  The only places you should
+# Sample configure.ac for Tcl Extensions.  The only places you should
 # need to modify this file are marked by the string __CHANGE__
 #-----------------------------------------------------------------------
 
@@ -19,7 +19,7 @@ dnl	to configure the system for the local environment.
 # so that we create the export library with the dll.
 #-----------------------------------------------------------------------
 
-AC_INIT([parse_args], [0.3.2])
+AC_INIT([parse_args], [0.3.3])
 
 #--------------------------------------------------------------------
 # Call TEA_INIT as the first TEA_ macro to set up initial vars.
@@ -27,7 +27,7 @@ AC_INIT([parse_args], [0.3.2])
 # as well as PKG_LIB_FILE and PKG_STUB_LIB_FILE.
 #--------------------------------------------------------------------
 
-TEA_INIT([3.9])
+TEA_INIT()
 
 AC_CONFIG_AUX_DIR(tclconfig)
 
@@ -71,7 +71,7 @@ TEA_SETUP_COMPILER
 # and PKG_TCL_SOURCES.
 #-----------------------------------------------------------------------
 
-TEA_ADD_SOURCES([main.c])
+TEA_ADD_SOURCES([parse_args.c])
 TEA_ADD_HEADERS([])
 TEA_ADD_INCLUDES([])
 TEA_ADD_LIBS([])
@@ -142,6 +142,9 @@ TEA_ENABLE_SHARED
 
 TEA_CONFIG_CFLAGS
 
+# Check for required polyfill
+TIP445
+
 #--------------------------------------------------------------------
 # Set the default compiler switches based on the --enable-symbols option.
 #--------------------------------------------------------------------
@@ -177,10 +180,12 @@ TEA_MAKE_LIB
 TEA_PROG_TCLSH
 #TEA_PROG_WISH
 
+AC_CONFIG_FILES([Makefile pkgIndex.tcl])
+#AC_CONFIG_FILES([sampleConfig.sh])
+
 #--------------------------------------------------------------------
-# Finally, substitute all of the various values into the Makefile.
-# You may alternatively have a special pkgIndex.tcl.in or other files
-# which require substituting th AC variables in.  Include these here.
+# Finally, substitute all of the various values into the files
+# specified with AC_CONFIG_FILES.
 #--------------------------------------------------------------------
 
-AC_OUTPUT([Makefile pkgIndex.tcl])
+AC_OUTPUT()

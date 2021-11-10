@@ -83,15 +83,15 @@ pkgdatadir	= $(datadir)/$(PKG_DIR)
 pkglibdir	= $(libdir)/$(PKG_DIR)
 pkgincludedir	= $(includedir)/$(PKG_DIR)
 
-top_builddir	= .
+top_builddir	= @abs_top_builddir@
 
 INSTALL_OPTIONS	=
-INSTALL		= @INSTALL@ ${INSTALL_OPTIONS}
-INSTALL_DATA_DIR = @INSTALL_DATA_DIR@
+INSTALL		= @INSTALL@ $(INSTALL_OPTIONS)
+INSTALL_DATA_DIR = ${INSTALL} -d -m 755
 INSTALL_DATA	= @INSTALL_DATA@
 INSTALL_PROGRAM	= @INSTALL_PROGRAM@
 INSTALL_SCRIPT	= @INSTALL_SCRIPT@
-INSTALL_LIBRARY	= @INSTALL_LIBRARY@
+INSTALL_LIBRARY	= ${INSTALL_DATA}
 
 PACKAGE_NAME	= @PACKAGE_NAME@
 PACKAGE_VERSION	= @PACKAGE_VERSION@
@@ -137,8 +137,6 @@ PKG_ENV		= @LD_LIBRARY_PATH_VAR@="$(EXTRA_PATH):$(@LD_LIBRARY_PATH_VAR@)" \
 
 TCLSH_PROG	= @TCLSH_PROG@
 TCLSH		= $(PKG_ENV) $(TCLSH_ENV) $(TCLSH_PROG)
-TCLSH_VALGRIND	= $(PKG_ENV) $(TCLSH_ENV) valgrind $(TCLSH_PROG)
-TCLSH_VALGRIND_FULL	= $(PKG_ENV) $(TCLSH_ENV) valgrind --leak-check=full $(TCLSH_PROG)
 
 #WISH_ENV	= TK_LIBRARY=`@CYGPATH@ $(TK_SRC_DIR)/library`
 #WISH_PROG	= @WISH_PROG@
@@ -152,7 +150,7 @@ INCLUDES	= @PKG_INCLUDES@ @TCL_INCLUDES@
 PKG_CFLAGS	= @PKG_CFLAGS@
 
 # TCL_DEFS is not strictly need here, but if you remove it, then you
-# must make sure that configure.in checks for the necessary components
+# must make sure that configure.ac checks for the necessary components
 # that your library may use.  TCL_DEFS can actually be a problem if
 # you do not compile with a similar machine setup as the Tcl core was
 # compiled with.
@@ -167,7 +165,17 @@ CPPFLAGS	= @CPPFLAGS@
 LIBS		= @PKG_LIBS@ @LIBS@
 AR		= @AR@
 CFLAGS		= @CFLAGS@
-COMPILE		= $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+LDFLAGS		= @LDFLAGS@
+LDFLAGS_DEFAULT			= @LDFLAGS_DEFAULT@
+COMPILE		= $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) \
+			  $(CFLAGS_DEFAULT) $(CFLAGS_WARNING) $(SHLIB_CFLAGS) $(CFLAGS)
+
+GDB		= gdb
+VALGRIND	= valgrind
+VALGRINDARGS	= --tool=memcheck --num-callers=8 --leak-resolution=high \
+		  --leak-check=yes -v --suppressions=suppressions --keep-debuginfo=yes \
+		  --trace-children=yes
+PGO=
 
 .SUFFIXES: .c .$(OBJEXT)
 
@@ -202,11 +210,14 @@ libraries:
 # end user machine when building from source.
 #========================================================================
 
-doc:
-	@echo "If you have documentation to create, place the commands to"
-	@echo "build the docs in the 'doc:' target.  For example:"
-	@echo "        xml2nroff sample.xml > sample.n"
-	@echo "        xml2html sample.xml > sample.html"
+doc: doc/parse_args.n README.md
+
+doc/parse_args.n: doc/parse_args.md
+	pandoc --standalone --from markdown --to man doc/parse_args.md --output doc/parse_args.n
+
+README.md: doc/parse_args.md
+	pandoc --standalone --from markdown --to gfm doc/parse_args.md --output README.md
+
 
 install: all install-binaries install-libraries install-doc
 
@@ -240,40 +251,40 @@ install-doc: doc
 
 test: binaries libraries
 	$(TCLSH) `@CYGPATH@ $(srcdir)/tests/all.tcl` $(TESTFLAGS) \
-		-load "package ifneeded ${PACKAGE_NAME} ${PACKAGE_VERSION} \
-			[list load `@CYGPATH@ $(PKG_LIB_FILE)` $(PACKAGE_NAME)]"
-
-test_valgrind: binaries libraries
-	$(TCLSH_VALGRIND) `@CYGPATH@ $(srcdir)/tests/all.tcl` $(TESTFLAGS) \
-		-load "package ifneeded ${PACKAGE_NAME} ${PACKAGE_VERSION} \
-			[list load `@CYGPATH@ $(PKG_LIB_FILE)` $(PACKAGE_NAME)]"
-
-test_valgrind_full: binaries libraries
-	$(TCLSH_VALGRIND_FULL) `@CYGPATH@ $(srcdir)/tests/all.tcl` $(TESTFLAGS) \
-		-load "package ifneeded ${PACKAGE_NAME} ${PACKAGE_VERSION} \
-			[list load `@CYGPATH@ $(PKG_LIB_FILE)` $(PACKAGE_NAME)]"
+	    -load "package ifneeded $(PACKAGE_NAME) $(PACKAGE_VERSION) \
+		[list load `@CYGPATH@ $(PKG_LIB_FILE)` $(PACKAGE_NAME)]"
 
 benchmark: binaries libraries
-	$(TCLSH) `@CYGPATH@ $(srcdir)/bench/run.tcl` $(TESTFLAGS)
+	$(TCLSH) `@CYGPATH@ $(srcdir)/bench/run.tcl` $(TESTFLAGS) -load package\ ifneeded\ $(PACKAGE_NAME)\ $(PACKAGE_VERSION)\ [list\ load\ `@CYGPATH@ $(PKG_LIB_FILE)`\ [string\ totitle\ $(PACKAGE_NAME)]]
 
 shell: binaries libraries
 	@$(TCLSH) $(SCRIPT)
 
-vimgdb:
-	$(PKG_ENV) vim
+vim-gdb: binaries libraries
+	$(TCLSH_ENV) $(PKG_ENV) vim -c "set number" -c "set mouse=a" -c "set foldlevel=100" -c "Termdebug --args $(TCLSH_PROG) tests/all.tcl $(TESTFLAGS) -singleproc 1 -load package\ ifneeded\ $(PACKAGE_NAME)\ $(PACKAGE_VERSION)\ [list\ load\ `@CYGPATH@ $(PKG_LIB_FILE)`\ [string\ totitle\ $(PACKAGE_NAME)]]" generic/main.c
+
+vim-core:
+	$(TCLSH_ENV) $(PKG_ENV) vim -c 'packadd termdebug' -c "set mouse=a" -c "set number" -c "set foldlevel=100" -c "Termdebug -ex layout\ asm -ex layout\ regs -ex focus\ cmd $(TCLSH_PROG) core" -c Winbar generic/main.c
+
+vim-gdb-benchmark: binaries libraries
+	$(TCLSH_ENV) $(PKG_ENV) vim -c "set number" -c "set mouse=a" -c "set foldlevel=100" -c "Termdebug --args $(TCLSH_PROG) bench/run.tcl $(TESTFLAGS) -load package\ ifneeded\ $(PACKAGE_NAME)\ $(PACKAGE_VERSION)\ [list\ load\ `@CYGPATH@ $(PKG_LIB_FILE)`\ [string\ totitle\ $(PACKAGE_NAME)]]" generic/main.c
 
 gdb:
-	$(PKG_ENV) gdb $(TCLSH_PROG) $(SCRIPT)
+	$(TCLSH_ENV) $(PKG_ENV) $(GDB) $(TCLSH_PROG) $(SCRIPT)
 
-VALGRINDARGS =	--tool=memcheck --num-callers=8 --leak-resolution=high \
-		--leak-check=yes --show-reachable=yes -v
+gdb-test: binaries libraries
+	$(TCLSH_ENV) $(PKG_ENV) $(GDB) \
+	    --args $(TCLSH_PROG) `@CYGPATH@ $(srcdir)/tests/all.tcl` \
+	    $(TESTFLAGS) -singleproc 1 \
+	    -load "package ifneeded $(PACKAGE_NAME) $(PACKAGE_VERSION) \
+		[list load `@CYGPATH@ $(PKG_LIB_FILE)` $(PACKAGE_NAME)]"
 
 valgrind: binaries libraries
-	$(TCLSH_ENV) valgrind $(VALGRINDARGS) $(TCLSH_PROG) \
-		`@CYGPATH@ $(srcdir)/tests/all.tcl` $(TESTFLAGS)
+	$(TCLSH_ENV) $(PKG_ENV) $(VALGRIND) $(VALGRINDARGS) $(TCLSH_PROG) \
+	    `@CYGPATH@ $(srcdir)/tests/all.tcl` $(TESTFLAGS)
 
 valgrindshell: binaries libraries
-	$(TCLSH_ENV) valgrind $(VALGRINDARGS) $(TCLSH_PROG) $(SCRIPT)
+	$(TCLSH_ENV) $(PKG_ENV) $(VALGRIND) $(VALGRINDARGS) $(TCLSH_PROG) $(SCRIPT)
 
 depend:
 
@@ -327,34 +338,40 @@ COMPRESS	= tar zcvf $(PKG_DIR).tar.gz $(PKG_DIR)
 DIST_ROOT	= /tmp/dist
 DIST_DIR	= $(DIST_ROOT)/$(PKG_DIR)
 
+DIST_INSTALL_DATA	= CPPROG='cp -p' $(INSTALL) -m 644
+DIST_INSTALL_SCRIPT	= CPPROG='cp -p' $(INSTALL) -m 755
+
 dist-clean:
 	rm -rf $(DIST_DIR) $(DIST_ROOT)/$(PKG_DIR).tar.*
 
 dist: dist-clean
 	$(INSTALL_DATA_DIR) $(DIST_DIR)
-	cp -p $(srcdir)/ChangeLog $(srcdir)/README* $(srcdir)/license* \
-		$(srcdir)/aclocal.m4 $(srcdir)/configure $(srcdir)/*.in \
-		$(DIST_DIR)/
-	chmod 664 $(DIST_DIR)/Makefile.in $(DIST_DIR)/aclocal.m4
-	chmod 775 $(DIST_DIR)/configure $(DIST_DIR)/configure.in
 
-	for i in $(srcdir)/*.[ch]; do \
-	    if [ -f $$i ]; then \
-		cp -p $$i $(DIST_DIR)/ ; \
-	    fi; \
-	done;
+	# TEA files
+	$(DIST_INSTALL_DATA) $(srcdir)/Makefile.in \
+	    $(srcdir)/aclocal.m4 $(srcdir)/configure.ac \
+	    $(DIST_DIR)/
+	$(DIST_INSTALL_SCRIPT) $(srcdir)/configure $(DIST_DIR)/
 
 	$(INSTALL_DATA_DIR) $(DIST_DIR)/tclconfig
-	cp $(srcdir)/tclconfig/install-sh $(srcdir)/tclconfig/tcl.m4 \
-		$(DIST_DIR)/tclconfig/
-	chmod 664 $(DIST_DIR)/tclconfig/tcl.m4
-	chmod +x $(DIST_DIR)/tclconfig/install-sh
+	$(DIST_INSTALL_DATA) $(srcdir)/tclconfig/README.txt \
+	    $(srcdir)/tclconfig/tcl.m4 $(srcdir)/tclconfig/install-sh \
+	    $(DIST_DIR)/tclconfig/
+
+	# Extension files
+	$(DIST_INSTALL_DATA) \
+	    $(srcdir)/ChangeLog \
+	    $(srcdir)/README.sha \
+	    $(srcdir)/license.terms \
+	    $(srcdir)/README \
+	    $(srcdir)/pkgIndex.tcl.in \
+	    $(DIST_DIR)/
 
 	list='demos doc generic library mac tests unix win'; \
 	for p in $$list; do \
 	    if test -d $(srcdir)/$$p ; then \
 		$(INSTALL_DATA_DIR) $(DIST_DIR)/$$p; \
-		cp -p $(srcdir)/$$p/*.* $(DIST_DIR)/$$p/; \
+		$(DIST_INSTALL_DATA) $(srcdir)/$$p/* $(DIST_DIR)/$$p/; \
 	    fi; \
 	done
 
@@ -366,7 +383,7 @@ dist: dist-clean
 
 #========================================================================
 # Don't modify the file to clean here.  Instead, set the "CLEANFILES"
-# variable in configure.in
+# variable in configure.ac
 #========================================================================
 
 clean:
@@ -460,7 +477,12 @@ uninstall-binaries:
 	  rm -f $(DESTDIR)$(bindir)/$$p; \
 	done
 
+tags:
+	ctags-exuberant generic/*
+
 .PHONY: all binaries clean depend distclean doc install libraries test
+.PHONY: gdb gdb-test valgrind valgrindshell tags
+.PHONY: vim-gdb vim-core vim-gdb-benchmark
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

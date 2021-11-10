@@ -5,3 +5,11 @@ pkgIndex.tcl
 Makefile
 core
 vgcore.*
+configure
+tclconfig
+autom4te.cache
+doc/parse_args.n
+last
+prof
+config.log
+config.status

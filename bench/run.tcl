@@ -1,10 +1,11 @@
-#!/usr/bin/env cfkit8.6
+#!/usr/bin/env tclsh
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
+set big	[string repeat a [expr {int(1e8)}]]	;# Allocate 100MB to pre-expand the zippy pool
+unset big
+
 set here	[file dirname [file normalize [info script]]]
-set parent	[file dirname $here]
 tcl::tm::path add $here
-lappend auto_path $parent
 
 package require bench
 

@@ -3,6 +3,7 @@
 
 #include <tcl.h>
 #include "tclstuff.h"
+#include "tip445.h"
 #include <string.h>
 #include <stdlib.h>
 #ifdef _MSC_VER
