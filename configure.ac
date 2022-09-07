@@ -188,4 +188,4 @@ AC_CONFIG_FILES([Makefile pkgIndex.tcl])
 # specified with AC_CONFIG_FILES.
 #--------------------------------------------------------------------
 
-AC_OUTPUT()
+AC_OUTPUT
