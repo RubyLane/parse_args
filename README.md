@@ -272,12 +272,12 @@ proc entry {widget args} {
 
 The paper presented at the 2016 Tcl Conference which discusses the
 approach and design choices made in this package in much greater depth:
-https://www.tcl-lang.org/community/tcl2016/assets/talk33/parse_args-paper.pdf
+https://www.tcl-lang.org/community/tcl2016/assets/talk33/parse\_args-paper.pdf
 
 # BUGS
 
 Please open an issue on the github tracker for the project if you
-encounter any problems: https://github.com/RubyLane/parse_args/issues
+encounter any problems: https://github.com/RubyLane/parse\_args/issues
 
 # LICENSE
 
