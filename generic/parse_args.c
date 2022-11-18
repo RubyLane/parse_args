@@ -20,7 +20,7 @@ Tcl_ObjType enum_choices_type = {
 
 static void free_enum_choices_intrep(Tcl_Obj* obj)
 {
-	Tcl_ObjIntRep*		ir = Tcl_FetchIntRep(obj, &enum_choices_type);
+	Tcl_ObjInternalRep*		ir = Tcl_FetchInternalRep(obj, &enum_choices_type);
 
 	if (ir->otherValuePtr) {
 		ckfree(ir->otherValuePtr);
@@ -30,20 +30,19 @@ static void free_enum_choices_intrep(Tcl_Obj* obj)
 
 static int GetEnumChoicesFromObj(Tcl_Interp* interp, Tcl_Obj* obj, char*** res)
 {
-	int				code = TCL_OK;
-	Tcl_ObjIntRep*	ir = Tcl_FetchIntRep(obj, &enum_choices_type);
+	int					code = TCL_OK;
+	Tcl_ObjInternalRep*	ir = Tcl_FetchInternalRep(obj, &enum_choices_type);
 
 	if (ir == NULL) {
-		const char**	table;
-		int				len;
-		Tcl_ObjIntRep	newir;
+		const char**		table;
+		int					len;
+		Tcl_ObjInternalRep	newir;
 
 		TEST_OK_LABEL(finally, code, Tcl_SplitList(interp, Tcl_GetString(obj), &len, &table));
 
 		newir.otherValuePtr = table;
-		Tcl_FreeIntRep(obj);
-		Tcl_StoreIntRep(obj, &enum_choices_type, &newir);
-		ir = Tcl_FetchIntRep(obj, &enum_choices_type);
+		Tcl_StoreInternalRep(obj, &enum_choices_type, &newir);
+		ir = Tcl_FetchInternalRep(obj, &enum_choices_type);
 	}
 
 	*res = (char**)ir->otherValuePtr;
@@ -179,7 +178,7 @@ static void free_parse_spec(struct parse_spec** specPtr) //{{{
 //}}}
 static void free_internal_rep(Tcl_Obj* obj) //{{{
 {
-	Tcl_ObjIntRep*	ir = Tcl_FetchIntRep(obj, &parse_spec_type);
+	Tcl_ObjInternalRep*	ir = Tcl_FetchInternalRep(obj, &parse_spec_type);
 
 	free_parse_spec((struct parse_spec**)&ir->otherValuePtr);
 }
@@ -187,8 +186,8 @@ static void free_internal_rep(Tcl_Obj* obj) //{{{
 //}}}
 static void dup_internal_rep(Tcl_Obj* src, Tcl_Obj* dest) // This shouldn't actually ever be called I think {{{
 {
-	Tcl_ObjIntRep*		ir = Tcl_FetchIntRep(src, &parse_spec_type);
-	Tcl_ObjIntRep		newir;
+	Tcl_ObjInternalRep*	ir = Tcl_FetchInternalRep(src, &parse_spec_type);
+	Tcl_ObjInternalRep	newir;
 	struct parse_spec*	spec = (struct parse_spec*)ckalloc(sizeof(struct parse_spec));
 	struct parse_spec*	old =  (struct parse_spec*)ir->otherValuePtr;
 	int		i;
@@ -238,7 +237,7 @@ static void dup_internal_rep(Tcl_Obj* src, Tcl_Obj* dest) // This shouldn't actu
 	}
 
 	newir.otherValuePtr = spec;
-	Tcl_StoreIntRep(dest, &parse_spec_type, &newir);
+	Tcl_StoreInternalRep(dest, &parse_spec_type, &newir);
 }
 
 //}}}
@@ -569,19 +568,18 @@ finally:
 
 static int GetParseSpecFromObj(Tcl_Interp* interp, Tcl_Obj* spec, struct parse_spec** res) //{{{
 {
-	int				code = TCL_OK;
-	Tcl_ObjIntRep*	ir = Tcl_FetchIntRep(spec, &parse_spec_type);
+	int					code = TCL_OK;
+	Tcl_ObjInternalRep*	ir = Tcl_FetchInternalRep(spec, &parse_spec_type);
 
 	if (ir == NULL) {
-		Tcl_ObjIntRep		newir;
+		Tcl_ObjInternalRep	newir;
 		struct parse_spec*	compiled_spec = NULL;
 
 		TEST_OK_LABEL(finally, code, compile_parse_spec(interp, spec, &compiled_spec));
 
 		newir.otherValuePtr = compiled_spec;
-		Tcl_FreeIntRep(spec);
-		Tcl_StoreIntRep(spec, &parse_spec_type, &newir);
-		ir = Tcl_FetchIntRep(spec, &parse_spec_type);
+		Tcl_StoreInternalRep(spec, &parse_spec_type, &newir);
+		ir = Tcl_FetchInternalRep(spec, &parse_spec_type);
 	}
 
 	if (res)
