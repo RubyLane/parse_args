@@ -22,9 +22,9 @@ static void free_enum_choices_intrep(Tcl_Obj* obj)
 {
 	Tcl_ObjInternalRep*		ir = Tcl_FetchInternalRep(obj, &enum_choices_type);
 
-	if (ir->otherValuePtr) {
-		ckfree(ir->otherValuePtr);
-		ir->otherValuePtr = NULL;
+	if (ir->twoPtrValue.ptr1) {
+		ckfree(ir->twoPtrValue.ptr1);
+		ir->twoPtrValue.ptr1 = NULL;
 	}
 }
 
@@ -40,12 +40,12 @@ static int GetEnumChoicesFromObj(Tcl_Interp* interp, Tcl_Obj* obj, char*** res)
 
 		TEST_OK_LABEL(finally, code, Tcl_SplitList(interp, Tcl_GetString(obj), &len, &table));
 
-		newir.otherValuePtr = table;
+		newir.twoPtrValue.ptr1 = table;
 		Tcl_StoreInternalRep(obj, &enum_choices_type, &newir);
 		ir = Tcl_FetchInternalRep(obj, &enum_choices_type);
 	}
 
-	*res = (char**)ir->otherValuePtr;
+	*res = (char**)ir->twoPtrValue.ptr1;
 
 finally:
 	return code;
@@ -180,7 +180,7 @@ static void free_internal_rep(Tcl_Obj* obj) //{{{
 {
 	Tcl_ObjInternalRep*	ir = Tcl_FetchInternalRep(obj, &parse_spec_type);
 
-	free_parse_spec((struct parse_spec**)&ir->otherValuePtr);
+	free_parse_spec((struct parse_spec**)&ir->twoPtrValue.ptr1);
 }
 
 //}}}
@@ -189,7 +189,7 @@ static void dup_internal_rep(Tcl_Obj* src, Tcl_Obj* dest) // This shouldn't actu
 	Tcl_ObjInternalRep*	ir = Tcl_FetchInternalRep(src, &parse_spec_type);
 	Tcl_ObjInternalRep	newir;
 	struct parse_spec*	spec = (struct parse_spec*)ckalloc(sizeof(struct parse_spec));
-	struct parse_spec*	old =  (struct parse_spec*)ir->otherValuePtr;
+	struct parse_spec*	old =  (struct parse_spec*)ir->twoPtrValue.ptr1;
 	int		i;
 
 	//fprintf(stderr, "in dup_internal_rep\n");
@@ -236,7 +236,7 @@ static void dup_internal_rep(Tcl_Obj* src, Tcl_Obj* dest) // This shouldn't actu
 		INCREF_OPTION(spec->multi[i]);
 	}
 
-	newir.otherValuePtr = spec;
+	newir.twoPtrValue.ptr1 = spec;
 	Tcl_StoreInternalRep(dest, &parse_spec_type, &newir);
 }
 
@@ -577,13 +577,13 @@ static int GetParseSpecFromObj(Tcl_Interp* interp, Tcl_Obj* spec, struct parse_s
 
 		TEST_OK_LABEL(finally, code, compile_parse_spec(interp, spec, &compiled_spec));
 
-		newir.otherValuePtr = compiled_spec;
+		newir.twoPtrValue.ptr1 = compiled_spec;
 		Tcl_StoreInternalRep(spec, &parse_spec_type, &newir);
 		ir = Tcl_FetchInternalRep(spec, &parse_spec_type);
 	}
 
 	if (res)
-		*res = (struct parse_spec*)ir->otherValuePtr;
+		*res = (struct parse_spec*)ir->twoPtrValue.ptr1;
 
 finally:
 	return code;
