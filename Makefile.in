@@ -217,6 +217,7 @@ doc/parse_args.n: doc/parse_args.md
 
 README.md: doc/parse_args.md
 	pandoc --standalone --from markdown --to gfm doc/parse_args.md --output README.md
+	sed --in-place 's/\/parse\\_args/\/parse_args/g' README.md
 
 
 install: all install-binaries install-libraries install-doc
