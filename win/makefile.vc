@@ -18,7 +18,7 @@ PROJECT = parse_args
 
 !include "rules-ext.vc"
 
-PRJ_OBJS = $(TMP_DIR)\main.obj
+PRJ_OBJS = $(TMP_DIR)\parse_args.obj
 
 # PRJ_DEFINES = -D_CRT_SECURE_NO_WARNINGS
 
