@@ -60,6 +60,38 @@ test parse_args-3.3 {default positional arg} -body { #<<<
 	unset -nocomplain foo first second third
 } -result {a b default_third}
 #>>>
+test parse_args-4.1 {-all} -body { #<<<
+	parse_args::parse_args {-ex first -foo a -iex First -ex second -iex Second -ex third -foo b} {
+		-ex		{-all}
+		-iex	{-all}
+		-foo	{}
+	}
+	list $ex $iex $foo
+} -cleanup {
+	unset -nocomplain ex iex foo
+} -result {{first second third} {First Second} b}
+#>>>
+test parse_args-4.2 {-all -multi} -body { #<<<
+	parse_args::parse_args {-ascii -dictionary -ascii -increasing -decreasing} {
+		-ascii			{-multi -name mode -all}
+		-dictionary		{-multi -name mode}
+		-increasing		{-multi -name order}
+		-decreasing		{-multi -name order -all}
+	}
+	list $mode $order
+} -cleanup {
+	unset -nocomplain mode order
+} -result {{ascii dictionary ascii} {increasing decreasing}}
+#>>>
+test parse_args-4.3 {-all} -body { #<<<
+	parse_args::parse_args {-foo "hello, multi"} {
+		-foo	{-all}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo
+} -result {{hello, multi}}
+#>>>
 test parse_args-10.1 {reject negative -args} -body { #<<<
 	parse_args::parse_args {-foo bar} {
 		-foo	{-args -1}
@@ -117,7 +149,7 @@ test parse_args-11.1 {invalid setting} -body { #<<<
 	}
 } -cleanup {
 	unset -nocomplain foo bar
-} -returnCodes error -result {bad setting "-foo": must be -default, -required, -validate, -name, -boolean, -args, -enum, -#, -multi, or -alias}
+} -returnCodes error -result {bad setting "-foo": must be -default, -required, -validate, -name, -boolean, -args, -enum, -#, -multi, -alias, or -all}
 #>>>
 test parse_args-20.1 {no args} -body { #<<<
 	parse_args::parse_args

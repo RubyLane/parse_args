@@ -66,7 +66,7 @@ test validate-2.2 {validator throws error} -body { #<<<
 	} r o] $r [dict get $o -errorcode]
 } -cleanup {
 	unset -nocomplain r o
-} -result {1 {Validation failed for "-rating": can't use empty string as operand of "+"} {PARSE_ARGS VALIDATION -rating}}
+} -result {1 {Validation failed for "-rating": can't use empty string "" as operand of "+"} {PARSE_ARGS VALIDATION -rating}}
 #>>>
 test validate-3.1 {validator with apply, throws error} -body { #<<<
 	list [catch {

@@ -111,6 +111,9 @@ available to define the argument are:
     Treat the value supplied for this argument as a variable name and
     bind the resulting variable for this argument to the variable of
     that name in the call frame above this one (upvar 1).
+  - **-all**  
+    Collect all the instances of this argument as a list, rather than
+    the default behaviour of using the last instance as the value.
 
 # EXAMPLES
 
