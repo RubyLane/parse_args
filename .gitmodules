@@ -1,3 +1,7 @@
 [submodule "tclconfig"]
 	path = tclconfig
 	url = https://github.com/tcltk/tclconfig.git
+	shallow = true
+[submodule "teabase"]
+	path = teabase
+	url = https://github.com/cyanogilvie/teabase

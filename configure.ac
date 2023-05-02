@@ -144,6 +144,7 @@ TEA_CONFIG_CFLAGS
 
 # Check for required polyfill
 TIP445
+TEABASE_INIT()
 
 #--------------------------------------------------------------------
 # Set the default compiler switches based on the --enable-symbols option.
