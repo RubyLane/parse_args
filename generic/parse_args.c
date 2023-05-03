@@ -808,7 +808,7 @@ static inline int _put_option_value(Tcl_Interp* interp, Tcl_Obj* res, struct par
 
 	if (all_idx >= 0) {
 		if (spec->all[all_idx] == NULL)
-			replace_tclobj(spec->all + all_idx, Tcl_NewListObj(1, NULL));
+			replace_tclobj(&spec->all[all_idx], Tcl_NewListObj(1, NULL));
 		TEST_OK_LABEL(finally, code, Tcl_ListObjAppendElement(interp, spec->all[all_idx], val));
 	} else {
 		if (dictmode) {
@@ -1016,9 +1016,9 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 		if (option->multi_idx >= 0) continue;
 
 		if (option->default_val != NULL) {
-			OUTPUT(option, option->default_val);
+			OUTPUT_DIRECT(option->name, option->default_val);
 		} else if (option->arg_count == 0) {
-			OUTPUT(option, l->obj[L_FALSE]);
+			OUTPUT_DIRECT(option->name, l->obj[L_FALSE]);
 		} else {
 			if (option->required) {
 				Tcl_SetErrorCode(interp, "PARSE_ARGS", "REQUIRED", Tcl_GetString(option->param), NULL);

@@ -92,6 +92,15 @@ test parse_args-4.3 {-all} -body { #<<<
 	unset -nocomplain foo
 } -result {{hello, multi}}
 #>>>
+test parse_args-4.4 {-all, omitted, default} -body { #<<<
+	parse_args::parse_args {} {
+		-foo	{-all -default {}}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo
+} -result {}
+#>>>
 test parse_args-10.1 {reject negative -args} -body { #<<<
 	parse_args::parse_args {-foo bar} {
 		-foo	{-args -1}
