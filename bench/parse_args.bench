@@ -4,9 +4,7 @@ if {"bench" ni [info commands bench]} {
 }
 
 package require parse_args
-namespace path {
-	::parse_args
-}
+namespace import ::parse_args::*
 
 bench parse_args-1.1 {Parsing options} -batch 1000 -setup { #<<<
 	set args	{
