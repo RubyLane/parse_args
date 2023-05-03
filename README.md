@@ -4,7 +4,7 @@ parse\_args - Core-style argument parsing for scripts
 
 # SYNOPSIS
 
-**package require parse\_args** ?0.4?
+**package require parse\_args** ?0.5?
 
 **parse\_args::parse\_args** *args* *argspec* ?*varname*?
 
@@ -83,7 +83,9 @@ available to define the argument are:
     By default named arguments consume a single following argument as
     the value for that argument. This setting changes that to *count*,
     which will cause the following *count* arguments to be gathered into
-    the variable holding this argument.
+    the variable holding this argument. If *count* is the special value
+    “all”, then all remaining arguments are gathered into a list as
+    the value of this argument.
   - **-enum** *possible\_values*  
     Restrict the values that will be accepted for this argument to those
     in the *possible\_values* list. Similar to using a validator that
@@ -106,7 +108,9 @@ available to define the argument are:
     A **-required** setting on any of the linked **-multi** arguments
     will require that the caller supply at least one of them. If
     multiple different flags were given, the one last in the argument
-    list applies.
+    list applies, unless **-all** was specified (on any linked option),
+    in which case all instances are grouped as a list in *name*, in the
+    order they were specified.
   - **-alias**  
     Treat the value supplied for this argument as a variable name and
     bind the resulting variable for this argument to the variable of
@@ -114,6 +118,10 @@ available to define the argument are:
   - **-all**  
     Collect all the instances of this argument as a list, rather than
     the default behaviour of using the last instance as the value.
+  - **-end**  
+    Treat the remaining arguments as if **--** directly followed this
+    option - that is: all words in *args* after those consumed by the
+    current option are treated as positional arguments.
 
 # EXAMPLES
 

@@ -1,6 +1,6 @@
-% parse_args(3) 0.4 | Advanced argument parsing for Tcl
+% parse_args(3) 0.5 | Advanced argument parsing for Tcl
 % Cyan Ogilvie
-% 0.4
+% 0.5
 
 
 # NAME
@@ -10,7 +10,7 @@ parse\_args - Core-style argument parsing for scripts
 
 # SYNOPSIS
 
-**package require parse_args** ?0.4?
+**package require parse_args** ?0.5?
 
 **parse_args::parse_args** *args* *argspec* ?*varname*?
 
@@ -91,7 +91,8 @@ are:
 :   By default named arguments consume a single following argument as the value
     for that argument.  This setting changes that to *count*, which will cause
     the following *count* arguments to be gathered into the variable holding
-    this argument.
+    this argument.  If *count* is the special value "all", then all remaining
+    arguments are gathered into a list as the value of this argument.
 
 **-enum** *possible_values*
 :   Restrict the values that will be accepted for this argument to those in the
@@ -113,7 +114,9 @@ are:
     (those that share a *name*) will supply a default value in *name* if none were
     passed.  A **-required** setting on any of the linked **-multi** arguments
     will require that the caller supply at least one of them.  If multiple
-    different flags were given, the one last in the argument list applies.
+    different flags were given, the one last in the argument list applies, unless
+    **-all** was specified (on any linked option), in which case all instances
+    are grouped as a list in *name*, in the order they were specified.
 
 **-alias**
 :   Treat the value supplied for this argument as a variable name and bind the
@@ -122,7 +125,12 @@ are:
 
 **-all**
 :   Collect all the instances of this argument as a list, rather than the default
-	behaviour of using the last instance as the value.
+    behaviour of using the last instance as the value.
+
+**-end**
+:   Treat the remaining arguments as if **\-\-** directly followed this option - that
+    is: all words in *args* after those consumed by the current option are treated
+    as positional arguments.
 
 # EXAMPLES
 

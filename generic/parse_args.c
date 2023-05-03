@@ -103,7 +103,7 @@ struct parse_spec {
 };
 
 struct option_info {
-	int			arg_count;	// -1: store the option name in -name if present
+	int			arg_count;	// -1: store the option name in -name if present; -2: comsume all remaining args
 	int			supplied;
 	int			is_args;	// args style processing - consume all remaining arguments
 	int			required;
@@ -116,8 +116,86 @@ struct option_info {
 	Tcl_Obj*	comment;		// NULL if no comment
 	int			alias;			// boolean
 	int			all_idx;		// >= 0 - collect all instances of this option as a list, accumulated in a list at this index
+	int			end_options;	// boolean.  Treat seeing this option as if -- followed immediately after it
 };
 
+// Fast unsigned int to string conversion from the talk by Alexandrescu: "Three Optimization Tips for C++" {{{
+uint32_t digits10(uint64_t v) //{{{
+{
+#define P01	10
+#define P02	100
+#define P03	1000
+#define P04	10000
+#define P05	100000
+#define P06	1000000
+#define P07	10000000
+#define P08	100000000
+#define P09	1000000000
+#define P10	10000000000
+#define P11	100000000000
+#define P12	1000000000000
+	if (v < P01) return 1;
+	if (v < P02) return 2;
+	if (v < P03) return 3;
+	if (v < P12) {
+		if (v < P08) {
+			if (v < P06) {
+				if (v < P04) return 4;
+				return 5 + (v >= P05);
+			}
+			return 7 + (v >= P07);
+		}
+		if (v < P10) {
+			return 9 + (v >= P09);
+		}
+		return 11 + (v >= P11);
+	}
+	return 12 + digits10(v / P12);
+}
+
+//}}}
+int u64toa(uint64_t value, char* restrict dst) //{{{
+{
+	// TODO: benchmark this against TclFormatInt and replace the latter with this if it's faster
+	static const char digits[201] =
+		"0001020304050607080910111213141516171819"
+		"2021222324252627282930313233343536373839"
+		"4041424344454647484950515253545556575859"
+		"6061626364656667686970717273747576777879"
+		"8081828384858687888990919293949596979899";
+	const uint32_t length = digits10(value);
+	uint32_t next = length-1;
+
+	while (value >= 100) {
+		const int i = (value % 100) * 2;
+		value /= 100;
+		memcpy(dst+next-1, digits+i, 2);
+		//dst[next] = digits[i+1];
+		//dst[next-1] = digits[i];
+		next -= 2;
+	}
+	if (value < 10) {
+		dst[next] = '0' + (uint32_t)value;
+	} else {
+		const int i = (uint32_t)value * 2;
+		memcpy(dst+next-1, digits+i, 2);
+		//dst[next] = digits[i + 1];
+		//dst[next-1] = digits[i];
+	}
+
+	return length;
+}
+
+//}}}
+//}}}
+static const char* static_numstr(uint64_t v) //{{{
+{
+	static char	staticbuf[21];		// 21 - max length of decimal representation of uint64_t + null terminator
+	staticbuf[u64toa(v, staticbuf)] = 0;
+	return staticbuf;
+}
+
+//}}}
 static void free_option_info(struct option_info* option) //{{{
 {
 	if (option) {
@@ -273,6 +351,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 		"-multi",
 		"-alias",
 		"-all",
+		"-end",
 		(char*)NULL
 	};
 	enum {
@@ -286,7 +365,8 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 		SETTING_COMMENT,
 		SETTING_MULTI,
 		SETTING_ALIAS,
-		SETTING_ALL
+		SETTING_ALL,
+		SETTING_END
 	};
 	Tcl_DictSearch	search;
 	Tcl_Obj*		multis = NULL;
@@ -388,9 +468,14 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 					option->arg_count = 0;
 					break;
 				case SETTING_ARGS:
-					TEST_OK_LABEL(err, code, Tcl_GetIntFromObj(interp, settingv[j++], &option->arg_count));
-					if (option->arg_count < 0)
-						THROW_ERROR_LABEL(err, code, "-args cannot be negative");
+					if (strcmp("all", Tcl_GetString(settingv[j])) == 0) {
+						option->arg_count = -2;
+					} else {
+						TEST_OK_LABEL(err, code, Tcl_GetIntFromObj(interp, settingv[j], &option->arg_count));
+						if (option->arg_count < 0)
+							THROW_ERROR_LABEL(err, code, "-args cannot be negative");
+					}
+					j++;
 					break;
 				case SETTING_ENUM:
 					{
@@ -410,12 +495,8 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 						TEST_OK_LABEL(err, code, Tcl_DictObjGet(interp, l->enums, enum_choices, &shared_enum_choices));
 
 						if (shared_enum_choices == NULL) {
-							if (Tcl_IsShared(l->enums)) {
-								Tcl_Obj*	tmp = NULL;
-								replace_tclobj(&tmp, Tcl_DuplicateObj(l->enums));
-								replace_tclobj(&l->enums, tmp);
-								replace_tclobj(&tmp, NULL);
-							}
+							if (Tcl_IsShared(l->enums))
+								replace_tclobj(&l->enums, Tcl_DuplicateObj(l->enums));
 
 							TEST_OK_LABEL(err, code, Tcl_DictObjPut(interp, l->enums, enum_choices, shared_enum_choices = enum_choices));
 						}
@@ -444,6 +525,9 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 					break;
 				case SETTING_ALL:
 					all_specified = 1;	// Just raise a flag here to prevent multiple -all specs from excessively incrementing all_count
+					break;
+				case SETTING_END:
+					option->end_options = 1;
 					break;
 				default:
 					{
@@ -827,6 +911,15 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 				}
 
 				switch (option->arg_count) {
+					case -2:
+						// All remaining args
+						i++;
+						val = Tcl_NewListObj(ac-i, av+i);
+						VALIDATE(option, val);
+						OUTPUT(option, val);
+						i += ac-i;
+						break;
+
 					case -1:
 						OUTPUT(option, src_option->default_val);
 						break;
@@ -858,6 +951,9 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 						break;
 				}
 
+				if (option->end_options)
+					check_options = 0;
+
 				continue;
 			} else {
 				check_options = 0;
@@ -871,11 +967,22 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 			goto finally;
 		}
 
-		if (spec->positional[positional_arg].is_args) {
+		if (spec->positional[positional_arg].is_args || spec->positional[positional_arg].arg_count == -2) {
 			val = Tcl_NewListObj(ac-i, av+i);
 			VALIDATE(&spec->positional[positional_arg], val);
 			OUTPUT_DIRECT(spec->positional[positional_arg].name, val);
 			i = ac;
+		} else if (spec->positional[positional_arg].arg_count > 1) {
+			const int arg_count	= spec->positional[positional_arg].arg_count;
+			if (arg_count > 0 && ac - i - 1 < arg_count) {
+				// This arg requires arg_count args and not enough remain
+				Tcl_SetErrorCode(interp, "PARSE_ARGS", "WRONGARGS", Tcl_GetString(spec->positional[positional_arg].name), NULL);
+				THROW_ERROR_LABEL(finally, code, "Expecting ", static_numstr(arg_count), " arguments for ", Tcl_GetString(spec->positional[positional_arg].name));
+			}
+			val = Tcl_NewListObj(arg_count, av+i);
+			VALIDATE(&spec->positional[positional_arg], val);
+			OUTPUT_DIRECT(spec->positional[positional_arg].name, val);
+			i += arg_count-1;	// -1: the for loop will increment by 1
 		} else {
 			VALIDATE(&spec->positional[positional_arg], av[i]);
 			if (spec->positional[positional_arg].alias == 0) {
@@ -973,7 +1080,7 @@ finally:
 
 //}}}
 
-static void free_interp_cx(ClientData cdata, Tcl_Interp* interp) //<<<
+static void free_interp_cx(ClientData cdata, Tcl_Interp* interp) //{{{
 {
 	struct interp_cx*	l = (struct interp_cx*)cdata;
 	int					i;
@@ -989,7 +1096,7 @@ static void free_interp_cx(ClientData cdata, Tcl_Interp* interp) //<<<
 	}
 }
 
-//>>>
+//}}}
 
 #ifdef WIN32
 extern DLLEXPORT

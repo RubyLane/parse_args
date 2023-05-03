@@ -142,6 +142,142 @@ test parse_args-10.5 {-args 3, too few} -body { #<<<
 	unset -nocomplain foo bar
 } -returnCodes error -match glob -result *
 #>>>
+test parse_args-10.6 {-args all, omitted, no default} -body { #<<<
+	parse_args::parse_args {-bar ""} {
+		-foo	{-args all}
+		-bar	{}
+	}
+	info exists foo
+} -cleanup {
+	unset -nocomplain foo bar
+} -result 0
+#>>>
+test parse_args-10.7 {-args all, omitted, default} -body { #<<<
+	parse_args::parse_args {-bar ""} {
+		-foo	{-args all -default {foo bar}}
+		-bar	{}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo bar
+} -result {foo bar}
+#>>>
+test parse_args-10.8 {-args all, omitted, required} -body { #<<<
+	parse_args::parse_args {-bar ""} {
+		-foo	{-args all -required}
+		-bar	{}
+	}
+} -cleanup {
+	unset -nocomplain foo bar
+} -returnCodes error -errorCode {PARSE_ARGS REQUIRED -foo} -result {option -foo is required}
+#>>>
+test parse_args-10.9 {-args all, 0 supplied, default} -body { #<<<
+	parse_args::parse_args {-bar "" -foo} {
+		-foo	{-args all -default {foo bar}}
+		-bar	{}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo bar
+} -result {}
+#>>>
+test parse_args-10.10 {-args all, 1 supplied, default} -body { #<<<
+	parse_args::parse_args {-bar "" -foo "hello, world"} {
+		-foo	{-args all -default {foo bar}}
+		-bar	{}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo bar
+} -result {{hello, world}}
+#>>>
+test parse_args-10.11 {-args all, 4 supplied, required} -body { #<<<
+	parse_args::parse_args {-bar "" -foo "hello, world" x y z} {
+		-foo	{-args all -required}
+		-bar	{}
+	}
+	set foo
+} -cleanup {
+	unset -nocomplain foo bar
+} -result {{hello, world} x y z}
+#>>>
+test parse_args-10.12 {-args all, 4 supplied, looks like option} -body { #<<<
+	parse_args::parse_args {-foo "hello, world" -bar "" z} {
+		-foo	{-args all}
+		-bar	{}
+	}
+	list [info exists bar] $foo
+} -cleanup {
+	unset -nocomplain foo bar
+} -result {0 {{hello, world} -bar {} z}}
+#>>>
+test parse_args-10.13 {-args 3, positional, supplied} -body { #<<<
+	parse_args::parse_args {a b c d e} {
+		foo			{-required}
+		bar			{-args 3 -required}
+		baz			{-required}
+	}
+	list $foo $bar $baz
+} -cleanup {
+	unset -nocomplain foo bar baz
+} -result {a {b c d} e}
+#>>>
+test parse_args-10.14 {-args 3, positional, omitted, required} -body { #<<<
+	parse_args::parse_args {a} {
+		foo			{-required}
+		bar			{-args 3 -required}
+	}
+} -cleanup {
+	unset -nocomplain foo bar
+} -returnCodes error -errorCode {PARSE_ARGS REQUIRED bar} -result {argument bar is required}
+#>>>
+test parse_args-10.15 {-args 3, positional, omitted, optional} -body { #<<<
+	parse_args::parse_args {a} {
+		foo			{-required}
+		bar			{-args 3}
+	}
+	list [info exists foo] [info exists bar]
+} -cleanup {
+	unset -nocomplain foo bar
+} -result {1 0}
+#>>>
+test parse_args-10.16 {-args 3, positional, omitted, default} -body { #<<<
+	parse_args::parse_args {a} {
+		foo			{-required}
+		bar			{-args 3 -default {x y z}}
+	}
+	list $foo $bar
+} -cleanup {
+	unset -nocomplain foo bar
+} -result {a {x y z}}
+#>>>
+test parse_args-10.17 {-args 3, positional, insufficient, required} -body { #<<<
+	parse_args::parse_args {a b c} {
+		foo			{-required}
+		bar			{-args 3 -required}
+	}
+} -cleanup {
+	unset -nocomplain foo bar
+} -returnCodes error -errorCode {PARSE_ARGS WRONGARGS bar} -result {Expecting 3 arguments for bar}
+#>>>
+test parse_args-10.18 {-args 3, positional, insufficient, optional} -body { #<<<
+	parse_args::parse_args {a b c} {
+		foo			{-required}
+		bar			{-args 3}
+	}
+} -cleanup {
+	unset -nocomplain foo bar
+} -returnCodes error -errorCode {PARSE_ARGS WRONGARGS bar} -result {Expecting 3 arguments for bar}
+#>>>
+test parse_args-10.18 {-args 3, positional, insufficient, default} -body { #<<<
+	parse_args::parse_args {a b c} {
+		foo			{-required}
+		bar			{-args 3 -default {x y z}}
+	}
+} -cleanup {
+	unset -nocomplain foo bar
+} -returnCodes error -errorCode {PARSE_ARGS WRONGARGS bar} -result {Expecting 3 arguments for bar}
+#>>>
 test parse_args-11.1 {invalid setting} -body { #<<<
 	parse_args::parse_args {} {
 		-foo	{-foo 3}
@@ -149,13 +285,39 @@ test parse_args-11.1 {invalid setting} -body { #<<<
 	}
 } -cleanup {
 	unset -nocomplain foo bar
-} -returnCodes error -result {bad setting "-foo": must be -default, -required, -validate, -name, -boolean, -args, -enum, -#, -multi, -alias, or -all}
+} -returnCodes error -result {bad setting "-foo": must be -default, -required, -validate, -name, -boolean, -args, -enum, -#, -multi, -alias, -all, or -end}
+#>>>
+test parse_args-12.1 {-end, -boolean, supplied} -body { #<<<
+	parse_args::parse_args {-ex a --args -ex e c d} {
+		-ex		{-all -default {}}
+		--args	{-name se_args -boolean -end}
+		first	{}
+		second	{}
+		rest	{-args all}
+	}
+	list $ex $se_args $first $second $rest
+} -cleanup {
+	unset -nocomplain ex se_args first second rest
+} -result {a 1 -ex e {c d}}
+#>>>
+test parse_args-12.2 {-end, -boolean, omitted} -body { #<<<
+	parse_args::parse_args {-ex a -ex e c d} {
+		-ex		{-all -default {}}
+		--args	{-name se_args -boolean -end}
+		first	{}
+		second	{}
+		rest	{-args all}
+	}
+	list $ex $se_args $first $second [info exists rest]
+} -cleanup {
+	unset -nocomplain ex se_args first second rest
+} -result {{a e} 0 c d 0}
 #>>>
 test parse_args-20.1 {no args} -body { #<<<
 	parse_args::parse_args
 } -returnCodes error -result {wrong # args: should be "parse_args::parse_args args args_spec ?dict?"}
 #>>>
-test parse_args-30.1 {Doesn't generate string rep} -body { # Known to fail currently - it's an still open problem to find a way to avoid this <<<
+test parse_args-30.1 {Doesn't generate string rep} -constraints knownBug -body { # Known to fail currently - it's an still open problem to find a way to avoid this <<<
 	set i	[expr {2-1}]
 	parse_args::parse_args [list $i] {
 		foo {}
