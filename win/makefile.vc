@@ -19,8 +19,7 @@ PROJECT = parse_args
 !include "rules-ext.vc"
 
 PRJ_OBJS = $(TMP_DIR)\parse_args.obj
-
-# PRJ_DEFINES = -D_CRT_SECURE_NO_WARNINGS
+PRJ_DEFINES = -DTIP445_SHIM -D_CRT_SECURE_NO_WARNINGS
 
 !include "$(_RULESDIR)\targets.vc"
 
