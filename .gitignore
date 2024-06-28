@@ -16,3 +16,4 @@ tags
 *~
 *.gcda
 *.gcno
+Makefile.teabase
