@@ -376,8 +376,6 @@ dist: dist-clean
 	    fi; \
 	done
 
-	$(DIST_INSTALL_ASIS) $(srcdir)/deps $(DIST_DIR)/deps/
-
 	(cd $(DIST_ROOT); $(COMPRESS);)
 
 #========================================================================
