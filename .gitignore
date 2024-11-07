@@ -1,6 +1,7 @@
 *.swp
 *.o
 *.so
+*.dll
 pkgIndex.tcl
 Makefile
 core
