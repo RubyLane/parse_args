@@ -181,7 +181,7 @@ TEA_MAKE_LIB
 TEA_PROG_TCLSH
 #TEA_PROG_WISH
 
-AC_CONFIG_FILES([Makefile pkgIndex.tcl teabase/Makefile.teabase])
+AC_CONFIG_FILES([Makefile pkgIndex.tcl teabase/Makefile])
 #AC_CONFIG_FILES([sampleConfig.sh])
 
 #--------------------------------------------------------------------

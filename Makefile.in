@@ -349,7 +349,7 @@ dist: dist-clean
 	$(INSTALL_DATA_DIR) $(DIST_DIR)/teabase
 	$(DIST_INSTALL_DATA) \
 	    $(srcdir)/teabase/teabase.m4 \
-	    $(srcdir)/teabase/Makefile.teabase.in \
+	    $(srcdir)/teabase/Makefile.in \
 	    $(srcdir)/teabase/ax_cc_for_build.m4 \
 	    $(srcdir)/teabase/ax_check_compile_flag.m4 \
 	    $(srcdir)/teabase/ax_gcc_builtin.m4 \
@@ -481,7 +481,7 @@ uninstall-binaries:
 .PHONY: all binaries clean depend distclean doc install libraries test
 .PHONY: gdb gdb-test valgrind valgrindshell tags
 
-include $(top_builddir)/teabase/Makefile.teabase
+include $(top_builddir)/teabase/Makefile
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
