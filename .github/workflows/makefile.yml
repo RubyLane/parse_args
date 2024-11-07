@@ -4,70 +4,73 @@ on: push
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install pandoc texlive-latex-base texlive-latex-recommended
 
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt install pandoc texlive-latex-base texlive-latex-recommended
+      - name: Cache Tcl build
+        id: cache-tcl
+        uses: actions/cache@v4
+        with:
+          path: /opt/tcl8.7
+          key: ${{ runner.os }}-f7629abff2
 
-    - name: Cache Tcl build
-      id: cache-tcl
-      uses: actions/cache@v4
-      with:
-        path: /opt/tcl8.7
-        key: ${{ runner.os }}-f7629abff2
+      - name: Build Tcl 8.7
+        if: steps.cache-tcl.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/src/tcl
+          cd /tmp/src/tcl
+          wget https://core.tcl-lang.org/tcl/tarball/f7629abff2/tcl.tar.gz -O - | tar xz --strip-components=1
+          cd unix
+          ./configure CFLAGS="-DPURIFY" --enable-symbols --enable-testmode --prefix=/opt/tcl8.7
+          make -j 8
+          sudo make install
 
-    - name: Build Tcl 8.7
-      if: steps.cache-tcl.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p /tmp/src/tcl
-        cd /tmp/src/tcl
-        wget https://core.tcl-lang.org/tcl/tarball/f7629abff2/tcl.tar.gz -O - | tar xz --strip-components=1
-        cd unix
-        ./configure CFLAGS="-DPURIFY" --enable-symbols --enable-testmode --prefix=/opt/tcl8.7
-        make -j 8
-        sudo make install
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
 
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'true'
+      - name: Build parse_args
+        run: |
+          autoconf
+          ./configure --with-tcl=/opt/tcl8.7/lib --enable-testmode
+          make
 
-    - name: Build parse_args
-      run: |
-        autoconf
-        ./configure --with-tcl=/opt/tcl8.7/lib --enable-testmode
-        make
+      - name: Run tests
+        run: make test 2>&1 | tee /tmp/test_results.log
 
-    - name: Run tests
-      run: make test 2>&1 | tee /tmp/test_results.log
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: /tmp/test_results.log
 
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results
-        path: /tmp/test_results.log
+      - name: Dist
+        #if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          make dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-tarball
+          path: /tmp/dist/parse_args*.tar.gz
 
-    - name: Dist
-      #if: startsWith(github.ref, 'refs/tags/v')
-      run: |
-        make dist
-    - uses: actions/upload-artifact@v4
-      with:
-        name: release-tarball
-        path: /tmp/dist/parse_args*.tar.gz
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          draft: false
+          prerelease: true
+          files: |
+            /tmp/dist/parse_args*.tar.gz
 
-    - name: Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/v')
-      with:
-        draft: false
-        prerelease: true
-        files: |
-          /tmp/dist/parse_args*.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
 
 #    - name: debug
 #      if: ${{ failure() }}
