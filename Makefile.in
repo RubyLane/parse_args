@@ -353,6 +353,9 @@ dist: dist-clean
 	    $(srcdir)/teabase/ax_cc_for_build.m4 \
 	    $(srcdir)/teabase/ax_check_compile_flag.m4 \
 	    $(srcdir)/teabase/ax_gcc_builtin.m4 \
+	    $(srcdir)/teabase/tclstuff.h \
+	    $(srcdir)/teabase/tip445.h \
+	    $(srcdir)/teabase/polyfill.h \
 	    $(DIST_DIR)/teabase/
 
 	$(INSTALL_DATA_DIR) $(DIST_DIR)/bench
