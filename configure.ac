@@ -19,7 +19,7 @@ dnl	to configure the system for the local environment.
 # so that we create the export library with the dll.
 #-----------------------------------------------------------------------
 
-AC_INIT([parse_args], [0.5.1])
+AC_INIT([parse_args], [0.5.2])
 
 #--------------------------------------------------------------------
 # Call TEA_INIT as the first TEA_ macro to set up initial vars.
@@ -183,6 +183,7 @@ TEA_PROG_TCLSH
 
 AC_CONFIG_FILES([Makefile pkgIndex.tcl])
 #AC_CONFIG_FILES([sampleConfig.sh])
+AC_CONFIG_HEADERS([config.h])
 
 #--------------------------------------------------------------------
 # Finally, substitute all of the various values into the files

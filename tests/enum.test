@@ -1,14 +1,8 @@
 if {[lsearch [namespace children] ::tcltest] == -1} {
     package require tcltest
-    namespace import ::tcltest::*
+    namespace import ::tcltest::test
 }
-
-try {
-	package require parse_args
-} on error {errmsg options} {
-	puts stderr "Error loading parse_args:\n$options"
-	return
-}
+::tcltest::loadTestedCommands
 
 # Options
 test enum-1.1 {basic usage} -body { #<<<

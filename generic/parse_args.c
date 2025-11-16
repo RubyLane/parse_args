@@ -35,7 +35,7 @@ static int GetEnumChoicesFromObj(Tcl_Interp* interp, Tcl_Obj* obj, char*** res)
 
 	if (ir == NULL) {
 		const char**		table;
-		int					len;
+		Tcl_Size			len;
 		Tcl_ObjInternalRep	newir;
 
 		TEST_OK_LABEL(finally, code, Tcl_SplitList(interp, Tcl_GetString(obj), &len, &table));
@@ -334,7 +334,8 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 {
 	struct interp_cx*	l = (struct interp_cx*)Tcl_GetAssocData(interp, "parse_args", NULL);
 	Tcl_Obj**			ov;
-	int					oc, i, j, settingc, str_len, code=TCL_OK, index, o_i=0, p_i=0;
+	Tcl_Size			oc, str_len, settingc;
+	int					i, j, code=TCL_OK, index, o_i=0, p_i=0;
 	const char*			str;
 	Tcl_Obj*			name;
 	Tcl_Obj**			settingv;
@@ -454,7 +455,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 					{
 						Tcl_Obj*	validatorobj = settingv[j++];
 						Tcl_Obj**	ov;
-						int			oc;
+						Tcl_Size	oc;
 
 						TEST_OK_LABEL(err, code, Tcl_ListObjGetElements(interp, validatorobj, &oc, &ov));
 						if (oc > 0)
@@ -485,7 +486,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 						 */
 						Tcl_Obj*	enum_choices = settingv[j++];
 						Tcl_Obj*	shared_enum_choices = NULL;
-						int			size;
+						Tcl_Size	size;
 
 						if (l->enums == NULL) {
 							code = TCL_ERROR;
@@ -550,7 +551,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 			int			multi_idx;
 			Tcl_Obj*	multi_choices;
 			const char*	multi_val;
-			int			multi_val_len;
+			Tcl_Size	multi_val_len;
 			Tcl_Obj*	multi_config_loan = NULL;
 			Tcl_Obj*	multi_all = NULL;
 
@@ -737,7 +738,7 @@ static int validate(Tcl_Interp* interp, struct option_info* option, Tcl_Obj* val
 	if (option->validator != NULL) {
 		int			res, passed;
 		Tcl_Obj**	ov;
-		int			oc;
+		Tcl_Size	oc;
 
 		TEST_OK(Tcl_ListObjGetElements(interp, option->validator, &oc, &ov));
 		{
@@ -831,7 +832,8 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 	int			code = TCL_OK;
 	struct interp_cx*	l = (struct interp_cx*)cdata;
 	Tcl_Obj**	av;
-	int			ac, i, check_options=1, positional_arg=0;
+	Tcl_Size	ac;
+	int			i, check_options=1, positional_arg=0;
 	struct parse_spec*	spec = NULL;
 	Tcl_Obj*	res = NULL;
 	Tcl_Obj*	val = NULL;
@@ -879,7 +881,7 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 	for (i=0; i<ac; i++) {
 		if (check_options) {
 			const char*	str;
-			int str_len;
+			Tcl_Size str_len;
 
 			str = Tcl_GetStringFromObj(av[i], &str_len);
 			//fprintf(stderr, "Checking av[%d]: \"%s\"\n", i, str);
@@ -1108,12 +1110,13 @@ int Parse_args_Init(Tcl_Interp* interp) //{{{
 	Tcl_Namespace*		ns = NULL;
 	int					i;
 
-	if (Tcl_InitStubs(interp, "8.5", 0) == NULL) {
-		code = TCL_ERROR;
-		goto finally;
-	}
-
-	if (Tcl_PkgRequire(interp, "Tcl", "8.5", 0) == NULL) {
+	/* Require 8.6 or later (9.0 also ok) */
+#ifdef USE_TCL_STUBS
+	if (NULL == Tcl_InitStubs(interp, TCL_VERSION, 0))
+#else
+	if (NULL == Tcl_PkgRequire(interp, "Tcl", "8.6-", 0))
+#endif
+	{
 		code = TCL_ERROR;
 		goto finally;
 	}

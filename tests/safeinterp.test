@@ -1,19 +1,13 @@
 if {[lsearch [namespace children] ::tcltest] == -1} {
     package require tcltest
-    namespace import ::tcltest::*
+    namespace import ::tcltest::test
 }
-
-try {
-	package require parse_args
-} on error {errmsg options} {
-	puts stderr "Error loading parse_args:\n$options"
-	return
-}
+::tcltest::loadTestedCommands
 
 test safeinterp-1.1 {Loading into safe interp} -setup { #<<<
 	set slave	[interp create -safe]
 } -body {
-	$slave invokehidden load {} parse_args
+	$slave invokehidden load {} Parse_args
 	$slave eval {
 		parse_args::parse_args {-test foo-1.1} {
 			-test	{-required}
@@ -30,6 +24,7 @@ test safeinterp-1.1 {Loading into safe interp} -setup { #<<<
 test safeinterp-1.2 {Loading into safe interp using package require} -setup { #<<<
 	set slave	[safe::interpCreate]
 } -body {
+	$slave eval [list set ::auto_path [list [file normalize [file join [info script] .. ..]] {*}$::auto_path]]
 	$slave eval {
 		package require parse_args
 		parse_args::parse_args {-test foo-1.2} {
