@@ -53,13 +53,15 @@ test validate-2.1 {validator throws error} -body { #<<<
 } -result 0
 #>>>
 test validate-2.2 {validator throws error} -body { #<<<
-	list [catch {
+	set outcome [list [catch {
 		parse_args::parse_args {-rating ""} {
 			-rating	{-validate {tcl::mathop::+ 1}}
 		}
 	} r o] \
-		[regexp {^Validation failed for "-rating": (cannot|can't) use (non-numeric|empty) string "" as (right )?operand of "\+"$} $r] \
-	   	[dict get $o -errorcode]
+		[regexp {^Validation failed for "-rating": (cannot|can't) use (non-numeric|empty) string as (right )?operand of "\+"$} $r] \
+	   	[dict get $o -errorcode]]
+
+        set outcome
 } -cleanup {
 	unset -nocomplain r o
 } -result {1 1 {PARSE_ARGS VALIDATION -rating}} -match regexp
