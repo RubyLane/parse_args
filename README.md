@@ -35,6 +35,28 @@ set of patterns established by the core Tcl commands, is terse and
 readable to specify the arguments, and is fast enough to use in any
 situation.
 
+# INSTALLATION
+Common note: make sure to clone the repository with the `--recurse-submodules` option in order to pull the `tclconfig` submodule.
+## Linux
+Make sure you have both `tcl` and `tcl-devel` packages installed.
+```sh
+autoreconf
+# customize with the correct Tcl paths in your system
+./configure --with-tcl=/usr/lib64  --with-tclinclude=/usr/include
+# "make all" will generate documentation using pandoc
+make 
+sudo make install
+# or you can skip the documentation:
+make binaries
+sudo make install-binaries
+```
+## Windows
+You can build the package using `nmake` in your MSVC shell. Customize INSTALLDIR to your Tcl location.
+```cmd
+cd parse_args\win
+nmake /nologo /f makefile.vc INSTALLDIR=c:\software\ActiveTcl_8.6.12
+nmake /nologo /f makefile.vc INSTALLDIR=c:\software\ActiveTcl_8.6.12 install
+```
 # COMMANDS
 
 **parse_args::parse_args** *args* *argspec*  
