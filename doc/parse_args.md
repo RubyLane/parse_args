@@ -105,7 +105,7 @@ are:
     reading the code.  In some future version this text may be incorporated
     into a usage error message that is generated when argument parsing fails.
 
-**-multi** *name*
+**-multi**
 :   Group a set of defined arguments together, so they act like mutually exclusive
     flags.  Used to implement patterns like the arguments `-ascii`, `-dictionary`,
     `-integer` and `-real` arguments to the core **lsort** command.

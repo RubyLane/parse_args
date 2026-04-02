@@ -1,14 +1,8 @@
 if {[lsearch [namespace children] ::tcltest] == -1} {
     package require tcltest
-    namespace import ::tcltest::*
+    namespace import ::tcltest::test
 }
-
-try {
-	package require parse_args
-} on error {errmsg options} {
-	puts stderr "Error loading parse_args:\n$options"
-	return
-}
+::tcltest::loadTestedCommands
 
 # Options
 test validate-1.1 {basic usage, valid} -body { #<<<
@@ -63,10 +57,12 @@ test validate-2.2 {validator throws error} -body { #<<<
 		parse_args::parse_args {-rating ""} {
 			-rating	{-validate {tcl::mathop::+ 1}}
 		}
-	} r o] $r [dict get $o -errorcode]
+	} r o] \
+		[regexp {^Validation failed for "-rating": (cannot|can't) use (non-numeric|empty) string "" as (right )?operand of "\+"$} $r] \
+	   	[dict get $o -errorcode]
 } -cleanup {
 	unset -nocomplain r o
-} -result {1 {Validation failed for "-rating": can't use empty string "" as operand of "+"} {PARSE_ARGS VALIDATION -rating}}
+} -result {1 1 {PARSE_ARGS VALIDATION -rating}} -match regexp
 #>>>
 test validate-3.1 {validator with apply, throws error} -body { #<<<
 	list [catch {

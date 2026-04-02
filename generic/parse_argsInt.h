@@ -1,6 +1,10 @@
 #ifndef _PARSE_ARGS_MAIN_H
 #define _PARSE_ARGS_MAIN_H
 
+#if HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include <tcl.h>
 #include "tclstuff.h"
 #include "tip445.h"
