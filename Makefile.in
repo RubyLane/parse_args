@@ -173,15 +173,8 @@ COMPILE		= $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) \
 
 GDB		= gdb
 VALGRIND	= valgrind
-VALGRINDEXTRA =
 VALGRINDARGS	= --tool=memcheck --num-callers=8 --leak-resolution=high \
-		  --leak-check=yes -v --suppressions=suppressions --keep-debuginfo=yes \
-		  --trace-children=yes $(VALGRINDEXTRA)
-
-PGOGEN_BUILD = -fprofile-generate=prof
-PGO_BUILD = @PGO_BUILD@
-PGO=
-CFLAGS		+= $(PGO)
+		  --leak-check=yes --show-reachable=yes -v
 
 .SUFFIXES: .c .$(OBJEXT)
 
@@ -354,7 +347,8 @@ DIST_ROOT	= /tmp/dist
 DIST_DIR	= $(DIST_ROOT)/$(PKG_DIR)
 
 DIST_INSTALL_DATA	= CPPROG='cp -p' $(INSTALL) -m 644
-DIST_INSTALL_SCRIPT	= CPPROG='cp -p' $(INSTALL) -m 755
+DIST_INSTALL_SCRIPT	= CPPROG='cp -p' $(INSTALL)
+DIST_INSTALL_ASIS	= cp -a
 
 dist-clean:
 	rm -rf $(DIST_DIR) $(DIST_ROOT)/$(PKG_DIR).tar.*
@@ -365,6 +359,7 @@ dist: dist-clean $(srcdir)/manifest.uuid
 	# TEA files
 	$(DIST_INSTALL_DATA) $(srcdir)/Makefile.in \
 	    $(srcdir)/aclocal.m4 $(srcdir)/configure.ac \
+	    $(srcdir)/config.h.in \
 	    $(DIST_DIR)/
 	$(DIST_INSTALL_SCRIPT) $(srcdir)/configure $(DIST_DIR)/
 
@@ -374,13 +369,29 @@ dist: dist-clean $(srcdir)/manifest.uuid
 	    $(srcdir)/tclconfig/tcl.m4 $(srcdir)/tclconfig/install-sh \
 	    $(DIST_DIR)/tclconfig/
 
+	$(INSTALL_DATA_DIR) $(DIST_DIR)/teabase
+	$(DIST_INSTALL_DATA) \
+	    $(srcdir)/teabase/teabase.m4 \
+	    $(srcdir)/teabase/Makefile.in \
+	    $(srcdir)/teabase/ax_cc_for_build.m4 \
+	    $(srcdir)/teabase/ax_check_compile_flag.m4 \
+	    $(srcdir)/teabase/ax_gcc_builtin.m4 \
+	    $(srcdir)/teabase/tclstuff.h \
+	    $(srcdir)/teabase/tip445.h \
+	    $(srcdir)/teabase/polyfill.h \
+	    $(DIST_DIR)/teabase/
+
+	$(INSTALL_DATA_DIR) $(DIST_DIR)/bench
+	$(DIST_INSTALL_DATA) \
+		$(srcdir)/teabase/teabase_bench-0.1.tm \
+		$(DIST_DIR)/bench/
+
 	# Extension files
 	$(DIST_INSTALL_DATA) \
-	    $(srcdir)/ChangeLog \
-	    $(srcdir)/README.sha \
-	    $(srcdir)/license.terms \
-	    $(srcdir)/README \
+	    $(srcdir)/README.md \
+	    $(srcdir)/LICENSE \
 	    $(srcdir)/pkgIndex.tcl.in \
+	    $(srcdir)/suppressions \
 	    $(DIST_DIR)/
 
 	list='demos doc generic library macosx tests unix win'; \
@@ -493,12 +504,10 @@ uninstall-binaries:
 	  rm -f "$(DESTDIR)$(bindir)/$$p"; \
 	done
 
-tags:
-	ctags-exuberant generic/*
-
 .PHONY: all binaries clean depend distclean doc install libraries test
 .PHONY: gdb gdb-test valgrind valgrindshell tags
-.PHONY: vim-gdb vim-core vim-gdb-benchmark
+
+include $(top_builddir)/teabase/Makefile
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
