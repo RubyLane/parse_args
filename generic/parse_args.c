@@ -1087,6 +1087,8 @@ static void free_interp_cx(ClientData cdata, Tcl_Interp* interp) //{{{
 	struct interp_cx*	l = (struct interp_cx*)cdata;
 	int					i;
 
+	(void)interp;
+
 	if (l) {
 		for (i=0; i<L_end; i++)
 			replace_tclobj(&l->obj[i], NULL);

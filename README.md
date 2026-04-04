@@ -1,17 +1,10 @@
----
-author:
-- Cyan Ogilvie
-date: 0.5
-title: parse_args(3) 0.5 \| Advanced argument parsing for Tcl
----
-
 # NAME
 
 parse_args - Core-style argument parsing for scripts
 
 # SYNOPSIS
 
-**package require parse_args** ?0.5?
+**package require parse_args** ?0.6?
 
 **parse_args::parse_args** *args* *argspec* ?*varname*?
 

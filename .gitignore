@@ -17,3 +17,10 @@ tags
 *~
 *.gcda
 *.gcno
+/build
+/buildwin
+/subprojects/.wraplock
+/subprojects/packagecache
+/subprojects/tcl
+/subprojects/libtommath-*
+/doc/parse_args.md

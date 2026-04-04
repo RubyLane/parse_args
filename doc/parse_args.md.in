@@ -1,6 +1,6 @@
-% parse_args(3) 0.5 | Advanced argument parsing for Tcl
+% parse_args(3) @PACKAGE_VERSION@ | Advanced argument parsing for Tcl
 % Cyan Ogilvie
-% 0.5
+% @PACKAGE_VERSION@
 
 
 # NAME
@@ -10,7 +10,7 @@ parse\_args - Core-style argument parsing for scripts
 
 # SYNOPSIS
 
-**package require parse_args** ?0.5?
+**package require parse_args** ?@PACKAGE_VERSION@?
 
 **parse_args::parse_args** *args* *argspec* ?*varname*?
 
