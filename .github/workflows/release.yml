@@ -86,7 +86,7 @@ jobs:
       run: |
         pkg_dir="parse_args-${{ steps.version.outputs.version }}"
         mkdir -p "/tmp/win/${pkg_dir}"
-        cp buildwin/teabase/libparse_args.dll "/tmp/win/${pkg_dir}/"
+        cp buildwin/teabase/*parse_args.dll "/tmp/win/${pkg_dir}/"
         cp buildwin/teabase/pkgIndex.tcl "/tmp/win/${pkg_dir}/"
         cp buildwin/doc/parse_args.html "/tmp/win/${pkg_dir}/parse_args.html"
         cd /tmp/win
