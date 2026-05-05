@@ -4,7 +4,7 @@ parse_args - Core-style argument parsing for scripts
 
 # SYNOPSIS
 
-**package require parse_args** ?0.6?
+**package require parse_args** ?0.6.2?
 
 **parse_args::parse_args** *args* *argspec* ?*varname*?
 
@@ -301,5 +301,5 @@ encounter any problems: https://github.com/RubyLane/parse_args/issues
 
 # LICENSE
 
-This package is Copyright 2023 Cyan Ogilvie, and is made available under
-the same license terms as the Tcl Core
+This package is Copyright 2015-2026 Cyan Ogilvie, and is made available
+under the same license terms as the Tcl Core
