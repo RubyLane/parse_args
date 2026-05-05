@@ -53,16 +53,10 @@ test validate-2.1 {validator throws error} -body { #<<<
 } -result 0
 #>>>
 test validate-2.2 {validator throws error} -body { #<<<
-	list [catch {
-		parse_args::parse_args {-rating ""} {
-			-rating	{-validate {tcl::mathop::+ 1}}
-		}
-	} r o] \
-		[regexp {^Validation failed for "-rating": (cannot|can't) use (non-numeric|empty) string "" as (right )?operand of "\+"$} $r] \
-	   	[dict get $o -errorcode]
-} -cleanup {
-	unset -nocomplain r o
-} -result {1 1 {PARSE_ARGS VALIDATION -rating}} -match regexp
+	parse_args::parse_args {-rating ""} {
+		-rating	{-validate {tcl::mathop::+ 1}}
+	}
+} -returnCodes error -errorCode {PARSE_ARGS VALIDATION -rating} -match regexp -result {^Validation failed for "-rating": (cannot|can't) use (non-numeric|empty) string( "")? as (right )?operand of "\+"$}
 #>>>
 test validate-3.1 {validator with apply, throws error} -body { #<<<
 	list [catch {
