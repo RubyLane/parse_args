@@ -833,7 +833,8 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 	struct interp_cx*	l = (struct interp_cx*)cdata;
 	Tcl_Obj**	av;
 	Tcl_Size	ac;
-	int			i, check_options=1, positional_arg=0;
+	int			check_options=1, positional_arg=0;
+	Tcl_Size                i;
 	struct parse_spec*	spec = NULL;
 	Tcl_Obj*	res = NULL;
 	Tcl_Obj*	val = NULL;

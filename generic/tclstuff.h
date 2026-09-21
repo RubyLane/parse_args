@@ -1,1 +1,1 @@
-../teabase/tclstuff.h
+#include "../teabase/tclstuff.h"
