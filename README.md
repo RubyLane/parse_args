@@ -4,7 +4,7 @@ parse_args - Core-style argument parsing for scripts
 
 # SYNOPSIS
 
-**package require parse_args** ?0.7.0?
+**package require parse_args** ?0.7.1?
 
 **parse_args::parse_args** *args* *argspec* ?*varname*?
 
@@ -50,12 +50,13 @@ option, otherwise a positional parameter. Named options and positional
 parameters may be freely interleaved in the *argspec*: positional
 parameters are bound in the order they appear in it, and the order of
 the named options is irrelevant. (The arguments being parsed still need
-to supply any named options before the positional arguments.) Like in
-proc argument definitions the name `args` is special and will consume
-all remaining arguments (after the leading positionals are bound and
-modulo any reservation for trailing **-required** positionals - see
-below for details); equivalently a positional may use **-args all** to
-opt into the same behaviour under a different name.
+to supply any named options before the positional arguments.) Each key
+may only appear once: a repeated key is an error. Like in proc argument
+definitions the name `args` is special and will consume all remaining
+arguments (after the leading positionals are bound and modulo any
+reservation for trailing **-required** positionals - see below for
+details); equivalently a positional may use **-args all** to opt into
+the same behaviour under a different name.
 
 The values of the dictionary contain the definition of the corresponding
 argument, such as `-required`, which marks that argument as being
@@ -229,7 +230,7 @@ table. A separately compiled extension depends on **parse_args**
 (pkg-config or meson **dependency(‘parse_args’)**, which supply
 **-DUSE_PARSE_ARGS_STUBS=1** and the stub library), includes
 **parse_args.h** and calls **ParseArgs_InitStubs**(*interp*) in its
-Init. Code compiled by **jitc** with a **package {parse_args 0.7.0}**
+Init. Code compiled by **jitc** with a **package {parse_args 0.7.1}**
 part calls the functions directly.
 
 int **ParseArgs_BindDict**(*interp*, *argspec*, *objc*, *objv*, *dictPtr*)  

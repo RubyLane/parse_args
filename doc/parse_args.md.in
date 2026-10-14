@@ -55,7 +55,8 @@ defines a named option, otherwise a positional parameter.  Named options and
 positional parameters may be freely interleaved in the *argspec*: positional
 parameters are bound in the order they appear in it, and the order of the named
 options is irrelevant.  (The arguments being parsed still need to supply any
-named options before the positional arguments.)  Like in proc argument
+named options before the positional arguments.)  Each key may only appear once:
+a repeated key is an error.  Like in proc argument
 definitions the name `args` is special and will consume all remaining arguments
 (after the leading positionals are bound and modulo any reservation for trailing
 **-required** positionals - see below for details); equivalently a positional may

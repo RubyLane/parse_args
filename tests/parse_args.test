@@ -627,6 +627,19 @@ test parse_args-52.6 {wrong # args usage is generated from the argspec, without 
 	1 {wrong # args: should be "?a?"} \
 ]
 #>>>
+test parse_args-52.7 {Duplicate argspec entries are rejected} -body { #<<<
+	list \
+		[catch {parse_args::parse_args {-x 1} {-x {} -x {-required}}} r] $r \
+		[catch {parse_args::parse_args {1 2} {a {} -y {} a {}}} r] $r \
+		[catch {parse_args::parse_args {-a} {-a {-multi -name m} -b {-multi -name m}}} r] $r $m
+} -cleanup {
+	unset -nocomplain r m
+} -result [list \
+	1 {Duplicate argspec entry "-x"} \
+	1 {Duplicate argspec entry "a"} \
+	0 {} a \
+]
+#>>>
 
 # cleanup
 ::tcltest::cleanupTests

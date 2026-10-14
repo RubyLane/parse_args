@@ -506,10 +506,21 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 	};
 	defer { if (spec) free_parse_spec(&spec); }
 
-	for (int i=0; i<oc; i+=2) {
-		const char* str = Tcl_GetString(ov[i]);
-		if (str[0] == '-')	spec->option_count++;
-		else				spec->positional_arg_count++;
+	{
+		/* A repeated key would leave the earlier definition unreachable but
+		 * still enforced (-required, -default), so reject it */
+		Tcl_HashTable	seen;
+		Tcl_InitHashTable(&seen, TCL_STRING_KEYS);
+		defer { Tcl_DeleteHashTable(&seen); }
+
+		for (int i=0; i<oc; i+=2) {
+			const char*	str = Tcl_GetString(ov[i]);
+			int			isnew;
+			Tcl_CreateHashEntry(&seen, str, &isnew);
+			if (!isnew) THROW_ERROR("Duplicate argspec entry \"", str, "\"");
+			if (str[0] == '-')	spec->option_count++;
+			else				spec->positional_arg_count++;
+		}
 	}
 
 	spec->option		= ckalloc(sizeof(struct option_info) * spec->option_count);
