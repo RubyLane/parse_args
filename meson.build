@@ -21,10 +21,10 @@ tea_want_shims = ['tip445']
 add_project_arguments('-DHAVE_CONFIG_H', language: 'c')
 
 deps = []
-inc = [include_directories('generic')]
+inc = [include_directories('.', 'generic')]
 
 pkg_sources = files(
-  'generic/parse_args.c',
+  'parse_args.c',
 )
 
 subdir('teabase')
