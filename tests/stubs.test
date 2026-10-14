@@ -1,0 +1,295 @@
+if {[lsearch [namespace children] ::tcltest] == -1} {
+	package require tcltest
+	namespace import ::tcltest::*
+}
+::tcltest::loadTestedCommands
+
+testConstraint haveJitc	[expr {![catch {package require jitc 0.8}]}]
+
+# The commands in stubs_api.c exercise the C API from a separately compiled
+# consumer: ::parse_args_direct::* are compiled by jitc and linked directly
+# against the package library (jitc's "package" part, driven by
+# parse_args::pkgconfig), and ::parse_args_stubs::* are in a meson-built
+# extension that goes through the stubs table (libparse_argsstub.a).  jitc
+# can't link static libraries, so it can't test the stubs path itself.
+variable direct_cdef	[list \
+	options			{-Wall -Werror} \
+	package			[list parse_args [package present parse_args]] \
+	include_path	[file dirname [file normalize [info script]]] \
+	code {
+		#include "stubs_api.c"
+
+		INIT { return stubs_api_register(interp, "::parse_args_direct"); }
+		RELEASE { Tcl_Namespace* ns = Tcl_FindNamespace(interp, "::parse_args_direct", NULL, 0); if (ns) Tcl_DeleteNamespace(ns); }
+		OBJCMD(compile) { return TCL_OK; }
+	} \
+]
+if {[testConstraint haveJitc]} {
+	jitc::capply $direct_cdef compile
+}
+
+set consumer	[file join [file dirname [parse_args::pkgconfig get libdir,runtime]] libparse_argsstubsconsumer[info sharedlibextension]]
+testConstraint haveStubsConsumer	[file exists $consumer]
+if {[testConstraint haveStubsConsumer]} {
+	load $consumer Parse_argsstubsconsumer
+}
+
+set spec {
+	-special	{-boolean}
+	a1			{-required}
+	a2			{}
+	a3			{-required}
+}
+
+# pkgconfig (TIP 59) <<<
+test stubs-1.1 {pkgconfig keys} -body { #<<<
+	lsort [parse_args::pkgconfig list]
+} -result {header includedir,runtime libdir,runtime library packagedir,runtime stublib}
+#>>>
+test stubs-1.2 {pkgconfig header, decls and bind.def are present in includedir} -body { #<<<
+	set dir	[parse_args::pkgconfig get includedir,runtime]
+	list \
+		[file exists [file join $dir [parse_args::pkgconfig get header]]] \
+		[file exists [file join $dir parse_argsDecls.h]] \
+		[file exists [file join $dir parseargs_bind.def]]
+} -cleanup {
+	unset -nocomplain dir
+} -result {1 1 1}
+#>>>
+test stubs-1.3 {pkgconfig library and stublib are present in libdir} -body { #<<<
+	set dir	[parse_args::pkgconfig get libdir,runtime]
+	list \
+		[llength [glob -nocomplain -directory $dir lib[parse_args::pkgconfig get library][info sharedlibextension]]] \
+		[llength [glob -nocomplain -directory $dir lib[parse_args::pkgconfig get stublib].a]]
+} -cleanup {
+	unset -nocomplain dir
+} -result {1 1}
+#>>>
+# pkgconfig >>>
+
+foreach {mode n ns constraint} {
+	direct	2	::parse_args_direct	haveJitc
+	stubs	3	::parse_args_stubs	haveStubsConsumer
+} {
+	# ParseArgs_BindDict <<<
+	test stubs-$n.1 "$mode: ParseArgs_BindDict" -constraints $constraint -body {
+		${ns}::bind_dict $spec -special a b
+	} -result {special 1 a1 a a3 b}
+
+	test stubs-$n.2 "$mode: ParseArgs_BindDict, error" -constraints $constraint -body {
+		list [catch {${ns}::bind_dict $spec} r o] $r [dict get $o -errorcode]
+	} -cleanup {
+		unset -nocomplain r o
+	} -result {1 {argument a1 is required} {PARSE_ARGS REQUIRED a1}}
+
+	test stubs-$n.3 "$mode: ParseArgs_BindDict, -alias" -constraints $constraint -body {
+		list [catch {${ns}::bind_dict {-v {-alias}} -v x} r] $r
+	} -cleanup {
+		unset -nocomplain r
+	} -result {1 {-alias is not yet supported in dictionary mode}}
+	# ParseArgs_BindDict >>>
+	# ParseArgs_Bind <<<
+	test stubs-$n.10 "$mode: ParseArgs_Bind: decl_idx in argspec order" -constraints $constraint -body {
+		${ns}::bind_cb {
+			-zz		{-default z}
+			a		{}
+			-aa		{-boolean}
+			-mm		{}
+			b		{-required}
+		} -mm m x y
+	} -result {{3 mm m} {1 a x} {4 b y} {2 aa 0} {0 zz z}}
+
+	test stubs-$n.11 "$mode: ParseArgs_Bind: -multi values have decl_idx -1" -constraints $constraint -body {
+		${ns}::bind_cb {
+			-x	{-multi -name m -default x}
+			-y	{-multi -name m}
+		} -y
+	} -result {{-1 m y}}
+
+	test stubs-$n.12 "$mode: ParseArgs_Bind: -all, -name, args" -constraints $constraint -body {
+		${ns}::bind_cb {
+			-i		{-all -name inc}
+			args	{}
+		} -i a -i b c d
+	} -result {{1 args {c d}} {0 inc {a b}}}
+
+	test stubs-$n.13 "$mode: ParseArgs_Bind: wrong # args" -constraints $constraint -body {
+		list [catch {${ns}::bind_cb {a {}} x y} r] $r
+	} -cleanup {
+		unset -nocomplain r
+	} -result {1 {wrong # args: should be "?a?"}}
+	# ParseArgs_Bind >>>
+	# parseargs_bind.def <<<
+	test stubs-$n.20 "$mode: parseargs_bind.def" -constraints $constraint -body {
+		${ns}::foo 1 2
+	} -result {0 1 42 2}
+
+	test stubs-$n.21 "$mode: parseargs_bind.def, cached argspec reused" -constraints $constraint -body {
+		list [${ns}::foo -special x 7 9] [${ns}::foo y 3]
+	} -result {{1 x 7 9} {0 y 42 3}}
+
+	test stubs-$n.22 "$mode: parseargs_bind.def, required" -constraints $constraint -body {
+		list [catch {${ns}::foo x} r o] $r [dict get $o -errorcode]
+	} -cleanup {
+		unset -nocomplain r o
+	} -result {1 {argument a3 is required} {PARSE_ARGS REQUIRED a3}}
+
+	test stubs-$n.23 "$mode: parseargs_bind.def, conversion error" -constraints $constraint -body {
+		list [catch {${ns}::foo x notanint} r] $r
+	} -cleanup {
+		unset -nocomplain r
+	} -result {1 {expected integer but got "notanint"}}
+
+	test stubs-$n.24 "$mode: parseargs_bind.def, all out-types, defaults" -constraints $constraint -body {
+		${ns}::types hello
+	} -result {obj=<NULL> wide=5000000000 dbl=1.5 bytes=0 mode=1 pair=0 str=hello/5 args=0}
+
+	test stubs-$n.25 "$mode: parseargs_bind.def, all out-types, supplied" -constraints $constraint -body {
+		${ns}::types -obj X -wide 7 -dbl 2.25 -bytes abc -mode blue -ignored zz -pair p q hello a b c
+	} -result {obj=X wide=7 dbl=2.25 bytes=3 mode=2 pair=2 pair1=q str=hello/5 args=3}
+
+	test stubs-$n.26 "$mode: parseargs_bind.def, -enum" -constraints $constraint -body {
+		list [catch {${ns}::types -mode purple hello} r] $r
+	} -cleanup {
+		unset -nocomplain r
+	} -result {1 {bad -mode "purple": must be red, green, or blue}}
+
+	test stubs-$n.27 "$mode: parseargs_bind.def, BYTES" -constraints $constraint -body {
+		list [catch {${ns}::types -bytes Ā hello} r o] [dict get $o -errorcode]
+	} -cleanup {
+		unset -nocomplain r o
+	} -result {1 {TCL VALUE BYTES}}
+
+	test stubs-$n.28 "$mode: parseargs_bind.def, PARSEARGS_ON_ERROR" -constraints $constraint -body {
+		list [${ns}::custom_error 21] [catch {${ns}::custom_error abc} r] $r
+	} -cleanup {
+		unset -nocomplain r
+	} -result {42 1 {expected integer but got "abc" (custom)}}
+
+	test stubs-$n.29 "$mode: parseargs_bind.def, held values outlive the arg objs" -constraints $constraint -body {
+		# The STRING and LIST values point into Tcl_Objs that only the slots hold
+		${ns}::types [string repeat x 3] {*}[lmap e {a b c d} {string cat $e $e}]
+	} -result {obj=<NULL> wide=5000000000 dbl=1.5 bytes=0 mode=1 pair=0 str=xxx/3 args=4}
+	# parseargs_bind.def >>>
+}
+
+# jitc OBJCMD cdata as the argspec cache <<<
+variable foo_cdef [list \
+	options	{-Wall -Werror} \
+	package	[list parse_args [package present parse_args]] \
+	code {
+		OBJCMD(foo) {
+			#define PARSEARGS_SPEC(OPT, ARG) \
+				OPT( special,	"-boolean",		BOOL	) \
+				ARG( a1,		"-required",	STRING	) \
+				ARG( a2,		"-default 42",	INT		) \
+				ARG( a3,		"-required",	WIDEINT	) \
+				/* line intentionally left blank */
+
+			/* These are the defaults:
+			#define PARSEARGS_OUT		args
+			#define PARSEARGS_INTERP	interp
+			#define PARSEARGS_OBJC		objc-1
+			#define PARSEARGS_OBJV		objv+1
+			#define PARSEARGS_CACHE		((Tcl_Obj**)cdata)
+			*/
+			#include <parseargs_bind.def>
+
+			Tcl_SetObjResult(interp, Tcl_NewListObj(4, (Tcl_Obj*[]){
+				Tcl_NewBooleanObj(args.special),
+				Tcl_NewStringObj(args.a1, -1),
+				Tcl_NewIntObj(args.a2),
+				Tcl_NewWideIntObj(args.a3),
+			}));
+			return TCL_OK;
+		}
+
+		OBJCMD(cached) {
+			// The argspec cached in this binding's slot
+			Tcl_Obj*	cache = cdata ? *(Tcl_Obj**)cdata : NULL;
+			Tcl_SetObjResult(interp, cache ? cache : Tcl_NewStringObj("<none>", -1));
+			return TCL_OK;
+		}
+
+		OBJCMD(spec_cached) {
+			// Bind, then return the argspec cached in this binding's slot
+			#define PARSEARGS_SPEC(OPT, ARG) \
+				OPT( special,	"-boolean",		BOOL	) \
+				ARG( a1,		"-required",	STRING	) \
+				ARG( a2,		"-default 42",	INT		) \
+				ARG( a3,		"",				WIDEINT	) \
+				/* line intentionally left blank */
+			#include <parseargs_bind.def>
+			Tcl_SetObjResult(interp, *(Tcl_Obj**)cdata);
+			return TCL_OK;
+		}
+
+		OBJCMD(multi) {
+			#define PARSEARGS_SPEC(OPT, ARG) \
+				OPT( x,	"-multi -name m",	OBJ	) \
+				/* line intentionally left blank */
+			#include <parseargs_bind.def>
+			return TCL_OK;
+		}
+
+		OBJCMD(alias) {
+			#define PARSEARGS_SPEC(OPT, ARG) \
+				OPT( v,	"-alias",	OBJ	) \
+				/* line intentionally left blank */
+			#include <parseargs_bind.def>
+			return TCL_OK;
+		}
+	} \
+]
+
+test stubs-4.1 {PARSE_ARGS, jitc::capply (no cache slot)} -constraints haveJitc -body { #<<<
+	list \
+		[jitc::capply $foo_cdef foo 1 2] \
+		[jitc::capply $foo_cdef cached]
+} -result {{0 1 42 2} <none>}
+#>>>
+test stubs-4.2 {PARSE_ARGS, jitc::bind caches the argspec in the binding's slot} -constraints haveJitc -setup { #<<<
+	jitc::bind foo		$foo_cdef foo
+	jitc::bind cached	$foo_cdef cached
+} -body {
+	list \
+		[foo 1 2] \
+		[foo -special a 3 4] \
+		[catch {foo} r] $r
+} -cleanup {
+	rename foo {}
+	rename cached {}
+	unset -nocomplain r
+} -result {{0 1 42 2} {1 a 3 4} 1 {argument a1 is required}}
+#>>>
+test stubs-4.3 {PARSE_ARGS, the cached argspec} -constraints haveJitc -setup { #<<<
+	jitc::bind spec_cached	$foo_cdef spec_cached
+} -body {
+	set first	[spec_cached 1]
+	list [dict keys $first] [dict get $first a2] [expr {[spec_cached 2] eq $first}]
+} -cleanup {
+	rename spec_cached {}
+	unset -nocomplain first
+} -result {{-special a1 a2 a3} {-default 42} 1}
+#>>>
+test stubs-4.4 {PARSE_ARGS, -multi is rejected} -constraints haveJitc -body { #<<<
+	list [catch {jitc::capply $foo_cdef multi -x} r] $r
+} -cleanup {
+	unset -nocomplain r
+} -result {1 {-multi is not supported by ParseArgs_BindSlots}}
+#>>>
+test stubs-4.5 {PARSE_ARGS, -alias is rejected} -constraints haveJitc -body { #<<<
+	list [catch {jitc::capply $foo_cdef alias -v x} r] $r
+} -cleanup {
+	unset -nocomplain r
+} -result {1 {-alias is not supported by ParseArgs_BindSlots}}
+#>>>
+# jitc OBJCMD cdata as the argspec cache >>>
+
+unset -nocomplain spec consumer direct_cdef foo_cdef n mode ns constraint
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

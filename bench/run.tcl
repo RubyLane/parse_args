@@ -1,1 +1,0 @@
-../teabase/run_bench.tcl

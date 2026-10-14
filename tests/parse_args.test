@@ -264,22 +264,27 @@ test parse_args-10.17 {-args 3, positional, insufficient, required} -body { #<<<
 } -returnCodes error -errorCode {PARSE_ARGS WRONGARGS bar} -result {Expecting 3 arguments for bar}
 #>>>
 test parse_args-10.18 {-args 3, positional, insufficient, optional} -body { #<<<
+	# Under the lookahead consumer, the optional multi-arg positional is
+	# skipped because `remaining (2) < arg_count (3) + sum_later_req (0)`,
+	# so the trailing args are leftover and reported as "too many".
 	parse_args::parse_args {a b c} {
 		foo			{-required}
 		bar			{-args 3}
 	}
 } -cleanup {
 	unset -nocomplain foo bar
-} -returnCodes error -errorCode {PARSE_ARGS WRONGARGS bar} -result {Expecting 3 arguments for bar}
+} -returnCodes error -match glob -result {wrong # args*}
 #>>>
-test parse_args-10.18 {-args 3, positional, insufficient, default} -body { #<<<
+test parse_args-10.19 {-args 3, positional, insufficient, default} -body { #<<<
+	# Same shape but bar has -default; bar still gets skipped (default
+	# applied), and the trailing args are leftover.
 	parse_args::parse_args {a b c} {
 		foo			{-required}
 		bar			{-args 3 -default {x y z}}
 	}
 } -cleanup {
 	unset -nocomplain foo bar
-} -returnCodes error -errorCode {PARSE_ARGS WRONGARGS bar} -result {Expecting 3 arguments for bar}
+} -returnCodes error -match glob -result {wrong # args*}
 #>>>
 test parse_args-11.1 {invalid setting} -body { #<<<
 	parse_args::parse_args {} {
@@ -320,7 +325,7 @@ test parse_args-20.1 {no args} -body { #<<<
 	parse_args::parse_args
 } -returnCodes error -result {wrong # args: should be "parse_args::parse_args args args_spec ?dict?"}
 #>>>
-test parse_args-30.1 {Doesn't generate string rep} -constraints knownBug -body { # Known to fail currently - it's an still open problem to find a way to avoid this <<<
+test parse_args-30.1 {Doesn't generate string rep when spec has no options} -body { #<<<
 	set i	[expr {2-1}]
 	parse_args::parse_args [list $i] {
 		foo {}
@@ -329,6 +334,41 @@ test parse_args-30.1 {Doesn't generate string rep} -constraints knownBug -body {
 } -cleanup {
 	unset -nocomplain i foo
 } -match glob -result {value is a int * no string representation}
+#>>>
+test parse_args-30.2 {String rep avoided when trailing positionals are -required} -body { #<<<
+	# n=1 reserves the last slot as positional so the option scan never touches it.
+	set i	[expr {2-1}]
+	parse_args::parse_args [list $i] {
+		-mode	{-default x}
+		data	{-required}
+	}
+	tcl::unsupported::representation $i
+} -cleanup {
+	unset -nocomplain i data mode
+} -match glob -result {value is a int * no string representation}
+#>>>
+test parse_args-30.3 {String rep avoided when spec has no options} -body { #<<<
+	# option_count == 0 → option phase is skipped entirely.
+	set i	[expr {2-1}]
+	parse_args::parse_args [list $i] {
+		foo	{}
+	}
+	tcl::unsupported::representation $i
+} -cleanup {
+	unset -nocomplain i foo
+} -match glob -result {value is a int * no string representation}
+#>>>
+test parse_args-30.4 {Looks-like-option arg in reserved positional slot} -body { #<<<
+	# `-mode` would otherwise match the option, but n=1 forces the trailing slot
+	# to be positional regardless of leading '-'.
+	parse_args::parse_args {-mode} {
+		-mode	{-default x}
+		data	{-required}
+	}
+	set data
+} -cleanup {
+	unset -nocomplain data mode
+} -result -mode
 #>>>
 test parse_args-40.1 {namespace import} -body { #<<<
 	set interp	[interp create]
@@ -344,6 +384,248 @@ test parse_args-40.1 {namespace import} -body { #<<<
 	interp delete $interp
 	unset -nocomplain interp
 } -result foo-parse_args-40.1
+#>>>
+test parse_args-50.1 {-boolean rejected on positional} -body { #<<<
+	parse_args::parse_args {} {
+		flag	{-boolean}
+	}
+} -cleanup {
+	unset -nocomplain flag
+} -returnCodes error -result {Cannot use -boolean on positional argument "flag"}
+#>>>
+test parse_args-50.2 {-args 0 rejected on positional} -body { #<<<
+	parse_args::parse_args {} {
+		zero	{-args 0}
+	}
+} -cleanup {
+	unset -nocomplain zero
+} -returnCodes error -result {Cannot use -args 0 on positional argument "zero"}
+#>>>
+test parse_args-50.3 {Optional positional cannot follow args consumer} -body { #<<<
+	parse_args::parse_args {a} {
+		args	{}
+		trailing	{}
+	}
+} -returnCodes error -match glob -result {Positional "trailing" cannot follow*}
+#>>>
+test parse_args-50.4 {Optional positional cannot follow -args all consumer} -body { #<<<
+	parse_args::parse_args {a} {
+		middle	{-args all}
+		trailing	{}
+	}
+} -returnCodes error -match glob -result {Positional "trailing" cannot follow*}
+#>>>
+test parse_args-50.5 {Two args/-args all consumers rejected} -body { #<<<
+	parse_args::parse_args {a} {
+		first	{-args all -required}
+		args	{}
+	}
+} -returnCodes error -match glob -result {Cannot have more than one args/-args all*}
+#>>>
+test parse_args-51.1 {Lookahead skips optional to reach trailing required (no default)} -body { #<<<
+	# arg0 ?arg1? arg2  — `dothing2` from the design discussion
+	parse_args::parse_args {a b} {
+		arg0	{-required}
+		arg1	{}
+		arg2	{-required}
+	}
+	list $arg0 [info exists arg1] $arg2
+} -cleanup {
+	unset -nocomplain arg0 arg1 arg2
+} -result {a 0 b}
+#>>>
+test parse_args-51.2 {Lookahead applies default for skipped optional} -body { #<<<
+	parse_args::parse_args {a b} {
+		arg0	{-required}
+		arg1	{-default x}
+		arg2	{-required}
+	}
+	list $arg0 $arg1 $arg2
+} -cleanup {
+	unset -nocomplain arg0 arg1 arg2
+} -result {a x b}
+#>>>
+test parse_args-51.3 {Lookahead consumes optional when room allows} -body { #<<<
+	parse_args::parse_args {a b c} {
+		arg0	{-required}
+		arg1	{-default x}
+		arg2	{-required}
+	}
+	list $arg0 $arg1 $arg2
+} -cleanup {
+	unset -nocomplain arg0 arg1 arg2
+} -result {a b c}
+#>>>
+test parse_args-51.4 {Lookahead with multi-arg required positional} -body { #<<<
+	# ?arg1? arg2.1 arg2.2  — `dothing3`
+	parse_args::parse_args {a b} {
+		arg1	{}
+		arg2	{-required -args 2}
+	}
+	list [info exists arg1] $arg2
+} -cleanup {
+	unset -nocomplain arg1 arg2
+} -result {0 {a b}}
+#>>>
+test parse_args-51.5 {args magic with trailing required positional} -body { #<<<
+	# args last_arg{-required}  — args reserves space for trailing required.
+	parse_args::parse_args {a b c d} {
+		args	{-name leading}
+		last	{-required}
+	}
+	list $leading $last
+} -cleanup {
+	unset -nocomplain leading last
+} -result {{a b c} d}
+#>>>
+test parse_args-51.6 {args magic with empty leading and trailing required} -body { #<<<
+	parse_args::parse_args {only} {
+		args	{-name leading}
+		last	{-required}
+	}
+	list $leading $last
+} -cleanup {
+	unset -nocomplain leading last
+} -result {{} only}
+#>>>
+test parse_args-51.7 {-args all positional reserves space for trailing required} -body { #<<<
+	parse_args::parse_args {a b c} {
+		middle	{-args all}
+		tail	{-required}
+	}
+	list $middle $tail
+} -cleanup {
+	unset -nocomplain middle tail
+} -result {{a b} c}
+#>>>
+test parse_args-51.8 {dothing4: leading required + optional + trailing required + args tail} -body { #<<<
+	parse_args::parse_args {a b} {
+		arg0	{-required}
+		arg1	{}
+		arg2	{-required}
+		args	{-name tailargs}
+	}
+	list $arg0 [info exists arg1] $arg2 $tailargs
+} -cleanup {
+	unset -nocomplain arg0 arg1 arg2 tailargs
+} -result {a 0 b {}}
+#>>>
+test parse_args-51.9 {dothing4: extra args spill into args} -body { #<<<
+	parse_args::parse_args {a b c d e} {
+		arg0	{-required}
+		arg1	{}
+		arg2	{-required}
+		args	{-name tailargs}
+	}
+	list $arg0 $arg1 $arg2 $tailargs
+} -cleanup {
+	unset -nocomplain arg0 arg1 arg2 tailargs
+} -result {a b c {d e}}
+#>>>
+test parse_args-51.10 {-required + -default treated as optional with default} -body { #<<<
+	parse_args::parse_args {} {
+		state	{-default normal -required}
+	}
+	set state
+} -cleanup {
+	unset -nocomplain state
+} -result normal
+#>>>
+
+test parse_args-52.1 {Validator re-entering a command using the same spec} -setup { #<<<
+	proc reenter args {
+		parse_args::parse_args $args {
+			-a		{-default adef}
+			-b		{-validate {apply {v {if {$v eq "outer"} {reenter -b inner}; return 1}}}}
+		}
+		list $a $b
+	}
+} -body {
+	# The inner call must not clobber the outer's record of which options were
+	# supplied (-a was, so it must keep its value, not get the default)
+	reenter -a x -b outer
+} -cleanup {
+	rename reenter {}
+} -result {x outer}
+#>>>
+test parse_args-52.2 {Validator shimmering the spec obj mid-bind} -setup { #<<<
+	set ::spec_52_2 {
+		-a	{-validate {apply {v {llength [dict keys $::spec_52_2]; return 1}}}}
+		-b	{-default bdef}
+		c	{}
+	}
+	# Make the dict / list shimmer replace the parse_spec intrep: the bind in
+	# progress must keep the compiled spec alive
+	proc shimmer args {
+		parse_args::parse_args $args $::spec_52_2
+		list $a $b $c
+	}
+} -body {
+	list [shimmer -a x y] [shimmer -a z w]
+} -cleanup {
+	rename shimmer {}
+	unset -nocomplain ::spec_52_2
+} -result {{x bdef y} {z bdef w}}
+#>>>
+test parse_args-52.3 {Pure list spec (no string rep)} -body { #<<<
+	set spec	[list]
+	lappend spec -a {-default 1} b {}
+	parse_args::parse_args {x} $spec
+	list $a $b [string length $spec]
+} -cleanup {
+	unset -nocomplain spec a b
+} -result {1 x 20}
+#>>>
+test parse_args-52.4 {Load into an interp without $dir (no pkgconfig)} -setup { #<<<
+	set child	[interp create]
+} -body {
+	load {} Parse_args $child
+	interp eval $child {
+		parse_args::parse_args {x} {a {}}
+		list $a [llength [info commands ::parse_args::pkgconfig]]
+	}
+} -cleanup {
+	interp delete $child
+	unset -nocomplain child
+} -result {x 0}
+#>>>
+test parse_args-52.5 {Unknown option: message lists the options, errorcode as Tcl_GetIndexFromObj} -body { #<<<
+	list \
+		[catch {parse_args::parse_args {-y 1} {-x {}}} r o] $r [dict get $o -errorcode] \
+		[catch {parse_args::parse_args {-y 1} {-x {} a {} -b {-boolean}}} r] $r \
+		[catch {parse_args::parse_args {-y 1} {-x {} -c {-multi -name m} a {} -b {-boolean}}} r] $r
+} -cleanup {
+	unset -nocomplain r o
+} -result [list \
+	1 {bad option "-y": must be -x} {TCL LOOKUP INDEX option -y} \
+	1 {bad option "-y": must be -x or -b} \
+	1 {bad option "-y": must be -x, -c, or -b} \
+]
+#>>>
+test parse_args-52.6 {wrong # args usage is generated from the argspec, without a command name} -setup { #<<<
+	set spec {
+		-x		{}
+		-flag	{-boolean}
+		-state	{-enum {normal disabled} -required}
+		-pair	{-args 2}
+		-a		{-multi -name m}
+		-c		{-args all}
+		a		{-required}
+		b		{}
+		p2		{-args 2 -default {}}
+	}
+	proc foo args {parse_args::parse_args $args $::spec}
+} -body {
+	list \
+		[catch {foo -state normal 1 2 3 4 5} r o] $r [dict get $o -errorcode] \
+		[catch {parse_args::parse_args {1 2} {a {}}} r] $r
+} -cleanup {
+	rename foo {}
+	unset -nocomplain spec r o
+} -result [list \
+	1 {wrong # args: should be "?-x x? ?-flag? -state normal|disabled ?-pair pair pair? ?-a? ?-c c ...? a ?b? ?p2 p2?"} {TCL WRONGARGS} \
+	1 {wrong # args: should be "?a?"} \
+]
 #>>>
 
 # cleanup

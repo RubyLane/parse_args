@@ -6,3 +6,5 @@ tcl_pkg_path=${pkg_dir}
 Name: @PACKAGE_NAME@
 Description: Argument parser for Tcl scripts
 Version: @PACKAGE_VERSION@
+Cflags: -I${pkg_dir} -DUSE_PARSE_ARGS_STUBS=1
+Libs: -L${pkg_dir} -l@STUBLIB@

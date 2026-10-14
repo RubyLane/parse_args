@@ -1,0 +1,127 @@
+#ifndef PARSE_ARGS_H
+#define PARSE_ARGS_H
+#include <tcl.h>
+#include <stdbool.h>
+
+/* Tcl 8.6 has no Tcl_Size (TIP 660): provide it as Tcl 8.7's tcl.h does.  The
+ * guards let this coexist with a consumer's own polyfill (such as teabase's
+ * config.h #define Tcl_Size int), whichever comes first. */
+#if TCL_MAJOR_VERSION < 9 && !defined(TCL_SIZE_MAX)
+#	ifndef Tcl_Size
+		typedef int Tcl_Size;
+#	endif
+#	define TCL_SIZE_MAX ((int)(((unsigned int)-1)>>1))
+#	ifndef TCL_SIZE_MODIFIER
+#		define TCL_SIZE_MODIFIER ""
+#	endif
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef BUILD_parse_args
+#undef TCL_STORAGE_CLASS
+#define TCL_STORAGE_CLASS DLLEXPORT
+#endif
+
+/* ParseArgs_Bind callback: called once for each value bound.  decl_idx is the
+ * index of the argspec entry (counting options and positionals, in the order
+ * they appear in the argspec) that produced the value, or -1 for the value of
+ * a -multi group.  name is the output name (the -name setting, or the entry's
+ * name without the leading "-" for options).  val is only guaranteed to live
+ * until the callback returns: take a reference to keep it. */
+typedef int (ParseArgs_BindCallback)(void* cdata, Tcl_Interp* interp, Tcl_Size decl_idx, Tcl_Obj* name, Tcl_Obj* val);
+
+/* Slot types for ParseArgs_BindSlots: how a bound value is converted and
+ * stored at a ParseArgs_Slot's addr */
+enum ParseArgs_SlotType {
+	PARSEARGS_SLOT_SKIP,	/* Don't store this value */
+	PARSEARGS_SLOT_OBJ,		/* Tcl_Obj*: the value (borrowed: kept alive by the slot's hold) */
+	PARSEARGS_SLOT_BOOL,	/* bool */
+	PARSEARGS_SLOT_INT,		/* int */
+	PARSEARGS_SLOT_WIDEINT,	/* Tcl_WideInt */
+	PARSEARGS_SLOT_DOUBLE,	/* double */
+	PARSEARGS_SLOT_STRING,	/* const char*, length to lenaddr if not NULL */
+	PARSEARGS_SLOT_BYTES,	/* const unsigned char*, length to lenaddr if not NULL */
+	PARSEARGS_SLOT_LIST,	/* Tcl_Obj**: the list elements, count to lenaddr */
+	PARSEARGS_SLOT_INDEX,	/* int: the index of the value in the entry's -enum choices */
+	PARSEARGS_SLOT_CUSTOM,	/* convert(convert_cdata, interp, val, addr) */
+};
+
+typedef int (ParseArgs_SlotConverter)(void* cdata, Tcl_Interp* interp, Tcl_Obj* val, void* addr);
+
+struct ParseArgs_Slot {
+	enum ParseArgs_SlotType		type;
+	void*						addr;
+	Tcl_Size*					lenaddr;
+	ParseArgs_SlotConverter*	convert;
+	void*						convert_cdata;
+	/* Set by ParseArgs_BindSlots: a reference to the bound value, which keeps
+	 * the pointers stored at addr valid.  Must start as NULL, and be released
+	 * by the caller (ParseArgs_ReleaseSlots) once it is done with the values */
+	Tcl_Obj*					hold;
+};
+
+static inline void ParseArgs_ReleaseSlots(Tcl_Size slotc, struct ParseArgs_Slot slots[])
+{
+	for (Tcl_Size i=0; i<slotc; i++) {
+		if (slots[i].hold) {
+			Tcl_DecrRefCount(slots[i].hold);
+			slots[i].hold = NULL;
+		}
+	}
+}
+
+/* Out-types for the PARSEARGS_SPEC declarations used with parseargs_bind.def.
+ * Each needs a PARSEARGS_OUTTYPE_<conv>(name) to declare its member(s) in the
+ * output struct, and a PARSEARGS_SLOTFOR_<conv>(out, name) giving the
+ * initializer of its struct ParseArgs_Slot.  Consumers can add their own (with
+ * PARSEARGS_SLOT_CUSTOM and a converter). */
+#define PARSEARGS_OUTTYPE_SKIP(name)
+#define PARSEARGS_OUTTYPE_OBJ(name)			Tcl_Obj*				name;
+#define PARSEARGS_OUTTYPE_BOOL(name)		bool					name;
+#define PARSEARGS_OUTTYPE_INT(name)			int						name;
+#define PARSEARGS_OUTTYPE_WIDEINT(name)		Tcl_WideInt				name;
+#define PARSEARGS_OUTTYPE_DOUBLE(name)		double					name;
+#define PARSEARGS_OUTTYPE_STRING(name)		const char*				name;
+#define PARSEARGS_OUTTYPE_BYTES(name)		const unsigned char*	name;	Tcl_Size	name##_len;
+#define PARSEARGS_OUTTYPE_LIST(name)		Tcl_Size				name##c;	Tcl_Obj**	name##v;
+#define PARSEARGS_OUTTYPE_INDEX(name)		int						name;
+
+#define PARSEARGS_SLOTFOR_SKIP(out, name)		{PARSEARGS_SLOT_SKIP}
+#define PARSEARGS_SLOTFOR_OBJ(out, name)		{PARSEARGS_SLOT_OBJ,		&(out).name}
+#define PARSEARGS_SLOTFOR_BOOL(out, name)		{PARSEARGS_SLOT_BOOL,		&(out).name}
+#define PARSEARGS_SLOTFOR_INT(out, name)		{PARSEARGS_SLOT_INT,		&(out).name}
+#define PARSEARGS_SLOTFOR_WIDEINT(out, name)	{PARSEARGS_SLOT_WIDEINT,	&(out).name}
+#define PARSEARGS_SLOTFOR_DOUBLE(out, name)		{PARSEARGS_SLOT_DOUBLE,		&(out).name}
+#define PARSEARGS_SLOTFOR_STRING(out, name)		{PARSEARGS_SLOT_STRING,		&(out).name}
+#define PARSEARGS_SLOTFOR_BYTES(out, name)		{PARSEARGS_SLOT_BYTES,		&(out).name,	&(out).name##_len}
+#define PARSEARGS_SLOTFOR_LIST(out, name)		{PARSEARGS_SLOT_LIST,		&(out).name##v,	&(out).name##c}
+#define PARSEARGS_SLOTFOR_INDEX(out, name)		{PARSEARGS_SLOT_INDEX,		&(out).name}
+
+/* Internal helpers for parseargs_bind.def */
+#define PARSEARGS__CAT_(a, b)						a##b
+#define PARSEARGS__CAT(a, b)						PARSEARGS__CAT_(a, b)
+#define PARSEARGS__MEMBER(name, settings, conv)		PARSEARGS_OUTTYPE_##conv(name)
+#define PARSEARGS__SLOT(name, settings, conv)		PARSEARGS_SLOTFOR_##conv(PARSEARGS_OUT, name),
+#define PARSEARGS__OPT_STR(name, settings, conv)	"-" #name " {" settings "}\n"
+#define PARSEARGS__ARG_STR(name, settings, conv)	#name " {" settings "}\n"
+
+#ifdef USE_PARSE_ARGS_STUBS
+extern const char* Parse_argsInitializeStubs(Tcl_Interp* interp);
+#define ParseArgs_InitStubs(interp) Parse_argsInitializeStubs((interp))
+#else
+#define ParseArgs_InitStubs(interp) Tcl_PkgRequire((interp), "@PACKAGE_NAME@", "@PACKAGE_VERSION@", 0)
+#endif
+
+#include "parse_argsDecls.h"
+
+EXTERN int Parse_args_Init(Tcl_Interp* interp);
+EXTERN int Parse_args_SafeInit(Tcl_Interp* interp);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

@@ -1,0 +1,2 @@
+option('testmode', type: 'boolean', value: false,
+  description: 'Build with whitebox testing hooks exposed (none yet: accepted for the standard build dir setup)')

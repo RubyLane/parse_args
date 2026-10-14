@@ -1,0 +1,91 @@
+/* Bind a Tcl_ObjCmdProc's arguments into a struct local, declared with an
+ * X-macro.  Include inside the function body after defining PARSEARGS_SPEC:
+ *
+ *	OBJCMD(foo) {
+ *		#define PARSEARGS_SPEC(OPT, ARG) \
+ *			OPT( verbose,	"-boolean",		BOOL	) \
+ *			ARG( name,		"-required",	STRING	) \
+ *			ARG( count,		"-default 1",	INT		) \
+ *			// line intentionally left blank
+ *		#include <parseargs_bind.def>
+ *
+ *		// args.verbose, args.name, args.count
+ *	}
+ *
+ * Each entry is (name, settings, out-type): name is the C member name (and the
+ * argspec name: OPT entries get a leading "-"), settings are the parse_args
+ * settings for the entry, as a string literal, and the out-type is one of the
+ * PARSEARGS_OUTTYPE_* from parse_args.h (SKIP OBJ BOOL INT WIDEINT DOUBLE STRING
+ * BYTES LIST INDEX), or one defined by the consumer.  Entries not supplied and
+ * with no -default are left zeroed.
+ *
+ * Optional settings (each is #undef'd at the end, ready for the next use):
+ *	PARSEARGS_OUT		name of the struct local (args)
+ *	PARSEARGS_INTERP	(interp)
+ *	PARSEARGS_OBJC		(objc-1)
+ *	PARSEARGS_OBJV		(objv+1)
+ *	PARSEARGS_CACHE		Tcl_Obj** slot where the argspec Tcl_Obj is cached across
+ *						calls, or NULL to build it for each call.  The default
+ *						is the per-binding slot a jitc OBJCMD gets as its cdata
+ *						((Tcl_Obj**)cdata, NULL under jitc::capply).  Override
+ *						this if cdata is something else.
+ *	PARSEARGS_ON_ERROR	statement run if binding fails, with the error in the
+ *						interp result (return TCL_ERROR)
+ *
+ * Values are converted from Tcl_Objs that the struct holds references to:
+ * pointers (STRING, BYTES, LIST, OBJ) stay valid until it goes out of scope,
+ * when they are released (by defer, so C23 + defer is required).
+ */
+
+#ifndef PARSEARGS_SPEC
+#	error "PARSEARGS_SPEC must be defined before including parseargs_bind.def"
+#endif
+#ifndef PARSEARGS_OUT
+#	define PARSEARGS_OUT		args
+#endif
+#ifndef PARSEARGS_INTERP
+#	define PARSEARGS_INTERP		interp
+#endif
+#ifndef PARSEARGS_OBJC
+#	define PARSEARGS_OBJC		objc-1
+#endif
+#ifndef PARSEARGS_OBJV
+#	define PARSEARGS_OBJV		objv+1
+#endif
+#ifndef PARSEARGS_CACHE
+#	define PARSEARGS_CACHE		((Tcl_Obj**)cdata)
+#endif
+#ifndef PARSEARGS_ON_ERROR
+#	define PARSEARGS_ON_ERROR	return TCL_ERROR
+#endif
+
+struct {
+	PARSEARGS_SPEC(PARSEARGS__MEMBER, PARSEARGS__MEMBER)
+} PARSEARGS_OUT = {};
+
+/* One slot per argspec entry, in declaration order (ParseArgs_BindSlots
+ * addresses them by the entry's index) */
+struct ParseArgs_Slot	PARSEARGS__CAT(PARSEARGS_OUT, _parseargs_slots)[] = {
+	PARSEARGS_SPEC(PARSEARGS__SLOT, PARSEARGS__SLOT)
+};
+defer {
+	ParseArgs_ReleaseSlots(
+		sizeof(PARSEARGS__CAT(PARSEARGS_OUT, _parseargs_slots)) / sizeof(PARSEARGS__CAT(PARSEARGS_OUT, _parseargs_slots)[0]),
+		PARSEARGS__CAT(PARSEARGS_OUT, _parseargs_slots));
+}
+
+if (ParseArgs_BindSlots(PARSEARGS_INTERP, PARSEARGS_CACHE,
+		PARSEARGS_SPEC(PARSEARGS__OPT_STR, PARSEARGS__ARG_STR),
+		PARSEARGS_OBJC, PARSEARGS_OBJV,
+		sizeof(PARSEARGS__CAT(PARSEARGS_OUT, _parseargs_slots)) / sizeof(PARSEARGS__CAT(PARSEARGS_OUT, _parseargs_slots)[0]),
+		PARSEARGS__CAT(PARSEARGS_OUT, _parseargs_slots)) != TCL_OK)
+	PARSEARGS_ON_ERROR;
+
+#undef PARSEARGS_SPEC
+#undef PARSEARGS_OUT
+#undef PARSEARGS_INTERP
+#undef PARSEARGS_OBJC
+#undef PARSEARGS_OBJV
+#undef PARSEARGS_CACHE
+#undef PARSEARGS_ON_ERROR
+// vim: ft=c
