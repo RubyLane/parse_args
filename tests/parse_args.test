@@ -640,6 +640,25 @@ test parse_args-52.7 {Duplicate argspec entries are rejected} -body { #<<<
 	0 {} a \
 ]
 #>>>
+test parse_args-52.8 {With no options in the spec, leading - args (and --) are positional values} -body { #<<<
+	list \
+		[parse_args::parse_args {-foo} {name {-required}}; set name] \
+		[parse_args::parse_args {--} {name {-required}}; set name] \
+		[parse_args::parse_args {-foo} {name {-default x}}; set name] \
+		[parse_args::parse_args {-- -foo} {a {} b {}}; list $a $b] \
+		[parse_args::parse_args {-foo -bar} {a {} rest {-args all}}; list $a $rest] \
+		[catch {parse_args::parse_args {-- -foo} {name {-required}}} r] $r
+} -cleanup {
+	unset -nocomplain name a b rest r
+} -result [list \
+	-foo \
+	-- \
+	-foo \
+	{-- -foo} \
+	{-foo -bar} \
+	1 {wrong # args: should be "name"} \
+]
+#>>>
 
 # cleanup
 ::tcltest::cleanupTests
