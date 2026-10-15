@@ -1,5 +1,5 @@
 project('parse_args', 'c',
-  version:          '0.7.1',
+  version:          '0.7.2',
   # A single c_std, not a fallback list ('gnu2y,gnu23,gnu2x'): meson (1.9.1)
   # doesn't resolve the list when this is built as a subproject, and passes it
   # to the compiler verbatim, failing every configure check.  gnu2x is C23 on

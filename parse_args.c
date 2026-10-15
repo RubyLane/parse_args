@@ -943,7 +943,8 @@ static int wrong_args(Tcl_Interp* interp, const struct parse_spec* spec) //<<<
 static int bind_args(Tcl_Interp* interp, struct interp_cx* l, struct parse_spec* spec, Tcl_Size ac, Tcl_Obj*const av[], bind_put* put, void* cx) //<<<
 {
 	Tcl_Size	i;
-	Tcl_Obj*	val = NULL;
+	// Held, since a validator would otherwise free a fresh (refcount 0) list value
+	Tcl_Obj*	val = NULL;		defer { replace_tclobj(&val, NULL); }
 
 	// The spec must survive this bind, even if a validator shimmers the spec obj
 	spec_incref(spec);
@@ -1043,7 +1044,7 @@ static int bind_args(Tcl_Interp* interp, struct interp_cx* l, struct parse_spec*
 		switch (option->arg_count) {
 			case -2:	// -args all
 				i++;
-				val = Tcl_NewListObj(ac-i, av+i);
+				replace_tclobj(&val, Tcl_NewListObj(ac-i, av+i));
 				VALIDATE(option, val);
 				OUTPUT(option, val);
 				i = ac;
@@ -1060,14 +1061,14 @@ static int bind_args(Tcl_Interp* interp, struct interp_cx* l, struct parse_spec*
 				break;
 
 			case 1:
-				val = av[i+1];
+				replace_tclobj(&val, av[i+1]);
 				VALIDATE(option, val);
 				OUTPUT_ALIASABLE(option, val);
 				i += 2;
 				break;
 
 			default:	// -args N, N > 1
-				val = Tcl_NewListObj(option->arg_count, av+i+1);
+				replace_tclobj(&val, Tcl_NewListObj(option->arg_count, av+i+1));
 				VALIDATE(option, val);
 				OUTPUT(option, val);
 				i += option->arg_count + 1;
@@ -1105,7 +1106,7 @@ static int bind_args(Tcl_Interp* interp, struct interp_cx* l, struct parse_spec*
 				Tcl_Size take_n = remaining - sum_later_req;
 				if (take_n < 0) take_n = 0;	// later -required will report the shortage
 				if (take_n > 0) {
-					val = Tcl_NewListObj(take_n, av+i);
+					replace_tclobj(&val, Tcl_NewListObj(take_n, av+i));
 					VALIDATE(p, val);
 					OUTPUT_DIRECT(p, val);
 					i += take_n;
@@ -1133,7 +1134,7 @@ static int bind_args(Tcl_Interp* interp, struct interp_cx* l, struct parse_spec*
 						OUTPUT_DIRECT(p, av[i]);
 					}
 				} else {
-					val = Tcl_NewListObj(take_n, av+i);
+					replace_tclobj(&val, Tcl_NewListObj(take_n, av+i));
 					VALIDATE(p, val);
 					OUTPUT_DIRECT(p, val);
 				}
@@ -1150,7 +1151,7 @@ static int bind_args(Tcl_Interp* interp, struct interp_cx* l, struct parse_spec*
 							OUTPUT_DIRECT(p, av[i]);
 						}
 					} else {
-						val = Tcl_NewListObj(take_n, av+i);
+						replace_tclobj(&val, Tcl_NewListObj(take_n, av+i));
 						VALIDATE(p, val);
 						OUTPUT_DIRECT(p, val);
 					}
@@ -1207,7 +1208,9 @@ static int bind_args(Tcl_Interp* interp, struct interp_cx* l, struct parse_spec*
 		if (multi_supplied[m]) continue;
 
 		if (option->default_val) {
-			OUTPUT(option, option->default_val);
+			// Direct: the -all accumulators have already been flushed, and
+			// the default is used as given (as for an -all option's default)
+			OUTPUT_DIRECT(option, option->default_val);
 		} else if (option->required) {
 			Tcl_SetErrorCode(interp, "PARSE_ARGS", "REQUIRED_ONE_OF", Tcl_GetString(option->enum_choices), NULL);
 			THROW_ERROR("one of ", Tcl_GetString(option->enum_choices), " are required");

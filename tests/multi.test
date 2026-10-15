@@ -215,6 +215,15 @@ test multi-5.1 {throw error for -multi on positional param} -body { #<<<
 	unset -nocomplain r o compare_as order
 } -result [list 1 {Cannot use -multi on positional argument "foo"} NONE]
 #>>>
+test multi-6.1 {-multi -all group default applies when no flag is given} -body { #<<<
+	list \
+		[parse_args::parse_args {} {-a {-name m -multi -all -default x} -b {-name m -multi}}; set m] \
+		[parse_args::parse_args {} {-a {-name m -multi -all} -b {-name m -multi -default {x y}}}; set m] \
+		[parse_args::parse_args {-b -a} {-a {-name m -multi -all -default x} -b {-name m -multi}}; set m]
+} -cleanup {
+	unset -nocomplain m
+} -result {x {x y} {b a}}
+#>>>
 
 # cleanup
 ::tcltest::cleanupTests

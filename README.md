@@ -4,7 +4,7 @@ parse_args - Core-style argument parsing for scripts
 
 # SYNOPSIS
 
-**package require parse_args** ?0.7.1?
+**package require parse_args** ?0.7.2?
 
 **parse_args::parse_args** *args* *argspec* ?*varname*?
 
@@ -50,13 +50,19 @@ option, otherwise a positional parameter. Named options and positional
 parameters may be freely interleaved in the *argspec*: positional
 parameters are bound in the order they appear in it, and the order of
 the named options is irrelevant. (The arguments being parsed still need
-to supply any named options before the positional arguments.) Each key
-may only appear once: a repeated key is an error. Like in proc argument
-definitions the name `args` is special and will consume all remaining
-arguments (after the leading positionals are bound and modulo any
-reservation for trailing **-required** positionals - see below for
-details); equivalently a positional may use **-args all** to opt into
-the same behaviour under a different name.
+to supply any named options before the positional arguments - see
+**NAMED OPTION SCAN**.) Each key may only appear once: a repeated key is
+an error. Named options must be supplied exactly as they appear in the
+*argspec*: unlike **Tcl_GetIndexFromObj**, unique prefixes are not
+accepted. Like in proc argument definitions the name `args` is special
+and will consume all remaining arguments (after the leading positionals
+are bound and modulo any reservation for trailing **-required**
+positionals - see below for details); a positional may use **-args all**
+to opt into the same behaviour under a different name. The one
+difference is that `args`, like a proc’s `args`, has an implicit
+**-default** of the empty list, so it is always set, whereas a **-args
+all** positional that receives no arguments is left unset unless it has
+a **-default**.
 
 The values of the dictionary contain the definition of the corresponding
 argument, such as `-required`, which marks that argument as being
@@ -120,22 +126,24 @@ parsing fails.
 Group a set of defined arguments together, so they act like mutually
 exclusive flags. Used to implement patterns like the arguments `-ascii`,
 `-dictionary`, `-integer` and `-real` arguments to the core **lsort**
-command. *name* will be the name of the variable that holds the value of
-the flag that was supplied. A **-default** setting on any of the linked
-**-multi** arguments (those that share a *name*) will supply a default
-value in *name* if none were passed. A **-required** setting on any of
-the linked **-multi** arguments will require that the caller supply at
-least one of them. If multiple different flags were given, the one last
-in the argument list applies, unless **-all** was specified (on any
-linked option), in which case all instances are grouped as a list in
-*name*, in the order they were specified. **-multi** is only valid for
-named options, and can’t be combined with **-enum**; either raises an
-error at spec compile time.
+command. *name* will be the name of the variable that holds the flag
+that was supplied, without its leading “-” (so `-integer` gives
+`integer`). A **-default** setting on any of the linked **-multi**
+arguments (those that share a *name*) will supply a default value in
+*name* if none were passed. A **-required** setting on any of the linked
+**-multi** arguments will require that the caller supply at least one of
+them. If multiple different flags were given, the one last in the
+argument list applies, unless **-all** was specified (on any linked
+option), in which case all instances are grouped as a list in *name*, in
+the order they were specified. **-multi** is only valid for named
+options, and can’t be combined with **-enum**; either raises an error at
+spec compile time.
 
 **-alias**  
 Treat the value supplied for this argument as a variable name and bind
 the resulting variable for this argument to the variable of that name in
-the call frame above this one (upvar 1).
+the call frame above this one (upvar 1). Not supported when a *varname*
+is given (dictionary mode), where it raises an error.
 
 **-all**  
 Collect all the instances of this argument as a list, rather than the
@@ -146,6 +154,39 @@ Treat the remaining arguments as if **--** directly followed this
 option - that is: all words in *args* after those consumed by the
 current option are treated as positional arguments.
 
+# NAMED OPTION SCAN
+
+Named options are recognised by scanning the arguments from the start.
+The scan ends, and all the remaining arguments are bound to positional
+parameters, at the first of:
+
+- An argument that doesn’t start with “-” (including the empty string).
+
+- The argument `--`, which is consumed (it isn’t bound to any
+  positional). Only the first `--` is special: a later one is an
+  ordinary value.
+
+- The arguments consumed by an option marked **-end**.
+
+- The arguments reserved for trailing **-required** positionals. These
+  are the last *n* arguments, where *n* is the total number of arguments
+  the **-required** positionals (without a **-default**) need. They are
+  never treated as options, even if they look like one. For example,
+  with the *argspec* `{-x {} name {-required}}`, the arguments `-foo`
+  and `-x 1 -foo` both set `name` to `-foo`, but `-foo bar` is an
+  unknown option error.
+
+If the *argspec* defines no named options, there is no scan at all:
+every argument is positional, including any that start with “-”, and
+`--` is an ordinary value rather than a separator. So
+`parse_args {-foo} {name {-required}}` sets `name` to `-foo`, and
+`parse_args {--} {name {}}` sets `name` to `--`.
+
+An argument within the scan that starts with “-” and isn’t `--` must be
+a named option from the *argspec*, otherwise it’s an error (see
+**ERRORS**). To pass a positional value that may start with “-” to a
+command that has named options, callers should precede it with `--`.
+
 # POSITIONAL BINDING
 
 Positional parameters are bound left-to-right with one element of
@@ -154,8 +195,9 @@ forward lookahead. Each positional **p** is processed in order:
 - If **p** is `args` (or has **-args all**): *p* consumes all remaining
   input arguments, except that arguments needed to satisfy any *later*
   **-required** positionals are reserved for them. If after that
-  reservation *p* would consume zero arguments and no **-default** was
-  supplied, the variable for *p* is left unset.
+  reservation *p* would consume zero arguments and it has no
+  **-default** (`args` always has one), the variable for *p* is left
+  unset.
 
 - If **p** is **-required** (without a **-default**): *p* consumes its
   *max(1, arg_count)* arguments. If too few input arguments remain to
@@ -175,15 +217,12 @@ may contain at most one `args`/**-args all** positional, and any
 positional that follows it must be **-required** without a **-default**.
 
 The string representation of an input argument is generated only for
-arguments that fall within the named-option scan (i.e. arguments before
-the first non-option, before `--`, and before any reservation for
-trailing **-required** positionals). Arguments that are reserved for
-**-required** trailing positionals are bound by position only and never
-have their first character inspected, so shimmer-hostile values -
-e.g. large pure bytearrays whose string form is expensive to
-materialise - pass through without forcing the conversion. It also means
-that such an argument is bound to its positional even if it starts with
-“-”.
+arguments that fall within the named-option scan (see **NAMED OPTION
+SCAN**). Arguments reserved for trailing **-required** positionals, and
+all arguments when the *argspec* has no named options, are bound by
+position only and never have their first character inspected. So
+shimmer-hostile values, such as large pure bytearrays whose string form
+is expensive to generate, pass through without being converted.
 
 # ERRORS
 
@@ -230,7 +269,7 @@ table. A separately compiled extension depends on **parse_args**
 (pkg-config or meson **dependency(‘parse_args’)**, which supply
 **-DUSE_PARSE_ARGS_STUBS=1** and the stub library), includes
 **parse_args.h** and calls **ParseArgs_InitStubs**(*interp*) in its
-Init. Code compiled by **jitc** with a **package {parse_args 0.7.1}**
+Init. Code compiled by **jitc** with a **package {parse_args 0.7.2}**
 part calls the functions directly.
 
 int **ParseArgs_BindDict**(*interp*, *argspec*, *objc*, *objv*, *dictPtr*)  
