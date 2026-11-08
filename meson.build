@@ -52,9 +52,10 @@ configure_file(
   input:          meson.project_name() + '.pc.in',
   output:         meson.project_name() + '.pc',
   configuration:  pc_conf,
-  install:        true,
+  # Not as a subproject: the consumer's install would otherwise leave this
+  # .pc (naming the subproject's version) over the system parse_args' one
+  install:        not meson.is_subproject(),
   install_dir:    tcl_dep.get_variable('libdir') / 'pkgconfig',
-  install_tag:    meson.is_subproject() ? 'deps' : 'runtime',
 )
 
 # Override-dependency for meson subproject consumers. Mirrors the
